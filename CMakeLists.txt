@@ -1,0 +1,11 @@
+motor/
+  IMotorDriver.hpp
+  WiringPiMotorDriver.hpp
+  WiringPiMotorDriver.cpp
+motion/
+  MotionController.hpp
+  MotionController.cpp
+rt/
+  Scheduler.hpp
+  Scheduler.cpp
+main.cpp
