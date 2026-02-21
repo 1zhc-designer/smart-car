@@ -1,4 +1,4 @@
-#include <array> // TCP motor server
+#include <array> // car motor server
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
