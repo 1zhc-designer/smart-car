@@ -1,4 +1,5 @@
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -101,6 +102,8 @@ int main() {
 
     return 0;
 =======
+=======
+>>>>>>> Stashed changes
 #include "DS18B20.hpp"
 
 #include <filesystem>
@@ -191,5 +194,8 @@ bool DS18B20::parseTemperature(const std::string& content, double& tempC)
 std::string DS18B20::getDevicePath() const
 {
     return device_file_;
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 }
