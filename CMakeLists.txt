@@ -13,14 +13,13 @@ include_directories(
 )
 
 add_executable(smart_car
-    main.cpp
-    motor/WiringPiMotorDriver.cpp
-    motion/MotionController.cpp
-    rt/Scheduler.cpp
-
-    sensors/DHT11.cpp
-    sensors/DS18B20.cpp
-    sensors/RainSensor.cpp
+    ${CMAKE_SOURCE_DIR}/main.cpp
+    ${CMAKE_SOURCE_DIR}/motor/WiringPiMotorDriver.cpp
+    ${CMAKE_SOURCE_DIR}/motion/MotionController.cpp
+    ${CMAKE_SOURCE_DIR}/rt/Scheduler.cpp
+    ${CMAKE_SOURCE_DIR}/sensors/DHT11.cpp
+    ${CMAKE_SOURCE_DIR}/sensors/DS18B20.cpp
+    ${CMAKE_SOURCE_DIR}/sensors/RainSensor.cpp
 )
 
 target_link_libraries(smart_car wiringPi pthread)

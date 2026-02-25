@@ -22,9 +22,11 @@ int RainSensor::analogPinIndex() const
 
 bool RainSensor::init()
 {
-    // 依赖：外部应先 wiringPiSetup()
-    // wiringPi 没有直接“是否已初始化”的官方 API，这里采用最小假设：
-    // 直接 setup PCF8591；若系统/权限/I2C 未就绪，通常会在底层打印/失败。
+    // Dependency: wiringPiSetup() must be called externally before this.
+    // wiringPi does not provide an official API to check initialization status.
+    // Here we assume minimal conditions and directly set up PCF8591.
+    // If the system, permissions, or I2C are not ready,
+    // the underlying layer typically reports errors or fails.
     try {
         pcf8591Setup(pcfBase_, i2cAddr_);
     } catch (...) {
@@ -54,7 +56,9 @@ std::optional<int> RainSensor::readDigital()
 
 bool RainSensor::digitalMeansRaining(int digitalValue)
 {
-    // 按常见雨滴模块：DO=0 触发（潮湿/有雨），DO=1 未触发（干燥/无雨）
+    // For common rain drop modules:
+    // DO = 0 → triggered (wet / raining)
+    // DO = 1 → not triggered (dry / no rain)
     return (digitalValue == 0);
 }
 

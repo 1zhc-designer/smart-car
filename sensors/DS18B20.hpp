@@ -7,12 +7,13 @@
 class DS18B20
 {
 public:
-    // 如果只有一个 DS18B20，可以不传 id 自动查找
+    // If there is only one DS18B20 device, the ID can be omitted
+    // and it will be discovered automatically
     explicit DS18B20(const std::string& device_id = "");
 
-    // 读取摄氏温度
-    // 成功返回温度值（°C）
-    // 失败返回 std::nullopt
+    // Read temperature in Celsius
+    // Returns temperature value (°C) on success
+    // Returns std::nullopt on failure
     std::optional<double> readTemperatureC();
 
     std::string getDevicePath() const;
