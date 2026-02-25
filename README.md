@@ -8,6 +8,16 @@ This GitHub repository showcases a real-time embedded systems project focused on
 
 The rover supports manual control and scheduled patrols, and stores data locally with timestamps. When abnormal conditions are detected, the system can trigger alerts and optionally capture additional close-up photos. The goal is to help greenhouse operators identify issues early, reduce manual workload, and improve crop consistency.
 
+<p>
+  <img src="assets/WPS图片(2).jpg" alt="Greenhouse Rover Prototype" width="48%">
+  <img src="assets/WPS图片(3).jpg" alt="Greenhouse Rover Top View" width="48%">
+</p>
+
+<p>
+  <em>Figure 1. Rover Prototype (Photo): Side view of the greenhouse inspection rover.</em><br>
+  <em>Figure 2. Rover Top View (Photo): Top view showing controller board, wiring, and sensor layout.</em>
+</p>
+
 ## Key Objectives
 
 - **Environmental Monitoring:** Measure temperature, humidity, and light at different greenhouse locations.
