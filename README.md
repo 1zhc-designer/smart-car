@@ -9,11 +9,8 @@ This GitHub repository showcases a real-time embedded systems project focused on
 The rover supports manual control and scheduled patrols, and stores data locally with timestamps. When abnormal conditions are detected, the system can trigger alerts and optionally capture additional close-up photos. The goal is to help greenhouse operators identify issues early, reduce manual workload, and improve crop consistency.
 
 <p align="center">
-  <img src="assets/rover-side.jpg" alt="Greenhouse Rover Prototype" width="520">
-</p>
-
-<p align="center">
-  <img src="assets/rover-top.jpg" alt="Greenhouse Rover Top View" width="520">
+  <img src="assets/rover-side.jpg" alt="Greenhouse Rover Prototype" width="420">
+  <img src="assets/rover-top.jpg" alt="Greenhouse Rover Top View" width="420">
 </p>
 
 <p align="center">
