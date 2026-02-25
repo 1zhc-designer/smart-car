@@ -1,7 +1,7 @@
 # Greenhouse Inspection Rover - "Measure. Monitor. Grow"
 
-<p>
-  <img src="assets/WPS图片(1).jpg" alt="Greenhouse Rover Logo" width="360">
+<p align="center">
+  <img src="assets/logo.jpg" alt="Greenhouse Rover Logo" width="360">
 </p>
 
 This GitHub repository showcases a real-time embedded systems project focused on greenhouse inspection and environmental monitoring. The rover measures temperature, humidity, and light intensity at multiple points in the greenhouse, while an onboard camera captures images of plant growth for visual inspection and historical comparison.
@@ -9,8 +9,8 @@ This GitHub repository showcases a real-time embedded systems project focused on
 The rover supports manual control and scheduled patrols, and stores data locally with timestamps. When abnormal conditions are detected, the system can trigger alerts and optionally capture additional close-up photos. The goal is to help greenhouse operators identify issues early, reduce manual workload, and improve crop consistency.
 
 <p>
-  <img src="assets/WPS图片(2).jpg" alt="Greenhouse Rover Prototype" width="48%">
-  <img src="assets/WPS图片(3).jpg" alt="Greenhouse Rover Top View" width="48%">
+  <img src="assets/rover-side.jpg" alt="Greenhouse Rover Prototype" width="48%">
+  <img src="assets/rover-top.jpg" alt="Greenhouse Rover Top View" width="48%">
 </p>
 
 <p>
