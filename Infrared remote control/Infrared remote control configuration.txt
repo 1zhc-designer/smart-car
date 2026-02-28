@@ -8,20 +8,17 @@ Press Ctrl+O to save, then press Enter to confirm, and finally press Ctrl+X to e
 #---------------------
 
 sudo apt update
+sudo apt install build-essential devscripts dh-make
+sudo apt build-dep lirc
 mkdir ~/build && cd ~/build
 apt source lirc
 
 Step 2: Complete the compilation dependencies and compile. 
 
-cd..
-sudo apt build-dep lirc
-cd ~/build/lirc-0.10.2
+cd lirc-0.10.2
 debuild -uc -us -b
 
 Step 3: Check if the file exists and install the patch
-
-cd ..
-ls
 
 #----------------------
 You should be able to see several files ending with ".deb", such as lirc_0.10.2-0.10_arm64.deb, etc.
