@@ -23,9 +23,15 @@ public:
     void start();
     void stop();
 
-    // event: push task then wake worker thread
+    // Push a task and wake the worker thread.
     void enqueue(const MotionTask& task);
+
+    // Clear queued tasks (does not automatically stop a currently active task).
     void clear();
+
+    // Replace any queued tasks with a single task and request immediate preemption.
+    // This is the key API to support "press new command -> execute immediately".
+    void replaceNow(const MotionTask& task);
 
 private:
     using Clock = std::chrono::steady_clock;
@@ -72,11 +78,11 @@ private:
     int timer_fd_{-1};
     int event_fd_{-1};
 
-    // worker state
+    // Worker state
     bool task_active_{false};
     MotionTask current_{};
 
-    // latency stats
+    // Latency stats
     mutable std::mutex stats_mtx_;
     LatencyStats latency_;
 };
