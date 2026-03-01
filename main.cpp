@@ -1,11 +1,12 @@
 #include "motor/WiringPiMotorDriver.hpp"
 #include "motion/MotionController.hpp"
 #include "rt/Scheduler.hpp"
+#include "ir/IrRemote.hpp"
 #include <iostream>
 
 int main() {
     try {
-        WiringPiMotorDriver::Pins pins {
+        WiringPiMotorDriver::Pins pins{
             .PWMA = 1, .AIN1 = 3, .AIN2 = 2,
             .PWMB = 4, .BIN1 = 6, .BIN2 = 5
         };
@@ -14,18 +15,17 @@ int main() {
         MotionController motion(driver);
         Scheduler sched(motion);
 
+        // Start the scheduler worker thread
         sched.start();
 
-        // enqueue tasks (event-driven)
-        sched.enqueue({Motion::Up,    50, std::chrono::milliseconds(2000)});
-        sched.enqueue({Motion::Down,  50, std::chrono::milliseconds(2000)});
-        sched.enqueue({Motion::Left,  50, std::chrono::milliseconds(2000)});
-        sched.enqueue({Motion::Right, 50, std::chrono::milliseconds(2000)});
-        sched.enqueue({Motion::Stop,   0, std::chrono::milliseconds(2000)});
+        // Start IR remote in its own thread (LIRC reads are blocking)
+        IrRemote remote(sched);
+        remote.start();
 
-        std::cout << "Tasks submitted. Press Enter to exit...\n";
+        std::cout << "IR control enabled. Press Enter to exit...\n";
         std::cin.get();
 
+        remote.stop();
         sched.stop();
         return 0;
     } catch (const std::exception& e) {
