@@ -1,21 +1,18 @@
 cmake_minimum_required(VERSION 3.16)
-project(smart_car LANGUAGES CXX)
+project(smartcar LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories(
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/motor
-    ${CMAKE_SOURCE_DIR}/motion
-    ${CMAKE_SOURCE_DIR}/rt
-)
-
-add_executable(smart_car
+add_executable(smartcar
     main.cpp
     motor/WiringPiMotorDriver.cpp
     motion/MotionController.cpp
     rt/Scheduler.cpp
+    ir/IrRemote.cpp
 )
 
-target_link_libraries(smart_car wiringPi pthread)
+target_include_directories(smartcar PRIVATE .)
+
+# Link against wiringPi, LIRC client library, and pthread for std::thread
+target_link_libraries(smartcar PRIVATE wiringPi lirc_client pthread)
