@@ -1,19 +1,25 @@
 <p align="center">
   <img src="images/logo.jpg" width="200">
 </p>
+
 # smart-car
-Greenhouse Inspection Rover-“Measure. Monitor. Grow
+
+## Greenhouse Inspection Rover — “Measure. Monitor. Grow”
 
 The Greenhouse Inspection Rover is a mobile monitoring platform designed for routine greenhouse patrols. It measures key environmental parameters — temperature, humidity, and light intensity — at multiple points across the greenhouse, while an onboard camera captures images of plant growth for visual inspection and historical comparison.
+
 The rover supports manual control and scheduled patrols, and stores data locally with timestamps. When abnormal conditions are detected (e.g., high temperature, low humidity, insufficient light), the system can trigger alerts and optionally take additional close-up photos at the affected area. The goal is to help greenhouse operators identify issues early, reduce manual workload, and improve crop consistency through data-driven management.
 
-Key Objectives
- Environmental Monitoring: Collect accurate temperature, humidity, and light measurements across different greenhouse locations.
-Visual Inspection: Use an onboard camera to capture plant growth images for routine checks and progress tracking.
- Early Warning: Detect abnormal conditions and generate alerts (threshold-based and trend-based) to support timely intervention.
-Data Logging & Traceability: Store sensor readings and images with timestamps (and optional location tags) for later review and reporting.
-Safe Operation: Ensure reliable movement in narrow aisles with basic obstacle avoidance, emergency stop, and fail-safe stop on errors.
-Ease of Use: Provide a simple workflow for operators: start patrol → monitor → review results → export report.
+---
+
+## Key Objectives
+
+- **Environmental Monitoring:** Collect accurate temperature, humidity, and light measurements across different greenhouse locations.
+- **Visual Inspection:** Use an onboard camera to capture plant growth images for routine checks and progress tracking.
+- **Early Warning:** Detect abnormal conditions and generate alerts (threshold-based and trend-based) to support timely intervention.
+- **Data Logging & Traceability:** Store sensor readings and images with timestamps (and optional location tags) for later review and reporting.
+- **Safe Operation:** Ensure reliable movement in narrow aisles with basic obstacle avoidance, emergency stop, and fail-safe stop on errors.
+- **Ease of Use:** Provide a simple workflow for operators: start patrol → monitor → review results → export report.
 
 
 System Photos / CAD Renders
