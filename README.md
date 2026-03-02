@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="images/logo.jpg" width="200">
+</p>
 # smart-car
 ## Greenhouse Inspection Rover — “Measure. Monitor. Grow”
 
