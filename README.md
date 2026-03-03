@@ -66,36 +66,23 @@ This section presents the visual documentation of the rover, including real prot
 - [Last Updated](#last-updated)
 
 ---
-
 ## Bill of Materials (BOM)
 
 ### Controller
-The greenhouse inspection rover uses a Raspberry Pi 4 Model B as the main controller. The Pi runs the full software stack, including sensor data acquisition (I2C/GPIO), camera capture, patrol logic, data logging, and optional local dashboard services.
-
-**Controller BOM (Raspberry Pi 4B):**
-- **Raspberry Pi 4 Model B (4GB recommended) ×1**  
-  Role: Main computing unit for sensing, vision, navigation logic, and logging.
-- **microSD Card (32–64GB, Class 10 / U3) ×1**  
-  Role: OS + storage for logged data and captured images.
-- **5V Buck Converter (sized for ≥3A peak) ×1**  
-  Role: Stable 5V supply for Pi 4B from the battery pack.
-- **Power Switch + Inline Fuse (recommended) ×1**  
-  Role: Safe power isolation and over-current protection.
-- **GPIO Breakout / Screw Terminal HAT (optional) ×1**  
-  Role: More reliable wiring and easier maintenance.
-- **Cooling (heatsinks + small fan, recommended) ×1 set**  
-  Role: Improves stability during continuous camera capture and logging.
-
-**Notes:** Use a common ground between the Pi, motor driver, and sensors. Keep motor power and logic power rails properly separated and regulated.
-
-### Sensors
-_TODO: Insert sensor BOM table here (temperature/humidity sensor, light sensor, camera, obstacle sensor, etc.)._
-
-### Mobility & Supporting Components
-_TODO: Insert mobility and support BOM table here (chassis, motors, motor driver, battery pack, wiring, brackets, etc.)._
-
-### Grand Total
-_TODO: Insert BOM total cost here._
+- **Raspberry Pi 4 Model B (4GB recommended) ×1**
+- **Motor Expansion Board ×1**
+- **Sensor Kit ×1 set**
+- **Analog Temperature Sensor Module ×1**
+- **PCF8591 ADC/DAC Module ×1**
+- **Active Buzzer ×1**
+- **Joystick Module ×1**
+- **RGB LED Module ×1**
+- **T-Type GPIO Expansion Board (T-Cobbler) ×1**
+- **IR Line Tracking Module ×1**
+- **IR Receiver + IR Remote Controller ×1 set**
+- **USB Camera + Pan-Tilt Servo Gimbal ×1 set**
+- **Breadboard ×1**
+- **Voltmeter Module ×1**
 
 ---
 
