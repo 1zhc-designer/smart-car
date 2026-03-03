@@ -67,9 +67,6 @@ This section presents the visual documentation of the rover, including real prot
 
 ---
 ## Bill of Materials (BOM)
-
-This section lists the core hardware modules used in the Greenhouse Inspection Rover.
-
 #### **Raspberry Pi 4 Model B (4GB recommended)**
 #### **Motor Expansion Board**
 [Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf)
