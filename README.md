@@ -70,11 +70,9 @@ This section presents the visual documentation of the rover, including real prot
 
 This section lists the core hardware modules used in the Greenhouse Inspection Rover.
 
-#### **Motor Expansion Board Schematic**
-[Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf)
-
 #### **Raspberry Pi 4 Model B (4GB recommended)**
 #### **Motor Expansion Board**
+[Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf)
 #### **Sensor Kit**
 #### **Analog Temperature Sensor Module**
 #### **PCF8591 ADC/DAC Module**
