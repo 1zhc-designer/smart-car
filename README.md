@@ -70,23 +70,23 @@ This section presents the visual documentation of the rover, including real prot
 
 This section lists the core hardware modules used in the Greenhouse Inspection Rover.
 
-**Motor Expansion Board Schematic:**  
+### Motor Expansion Board Schematic
 [Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf)
 
-**Raspberry Pi 4 Model B**  
-**Motor Expansion Board**  
-**Sensor Kit**  
-**Analog Temperature Sensor Module**  
-**PCF8591 ADC/DAC Module**  
-**Active Buzzer**  
-**Joystick Module**  
-**RGB LED Module**  
-**T-Type GPIO Expansion Board (T-Cobbler)**  
-**IR Line Tracking Module**  
-**IR Receiver + IR Remote Controller**  
-**USB Camera + Pan-Tilt Servo Gimbal**  
-**Breadboard**  
-**Voltmeter Module**
+### Raspberry Pi 4 Model B
+### Motor Expansion Board
+### Sensor Kit
+### Analog Temperature Sensor Module
+### PCF8591 ADC/DAC Module
+### Active Buzzer
+### Joystick Module
+### RGB LED Module
+### T-Type GPIO Expansion Board (T-Cobbler)
+### IR Line Tracking Module
+### IR Receiver + IR Remote Controller
+### USB Camera + Pan-Tilt Servo Gimbal
+### Breadboard
+### Voltmeter Module
 ---
 
 ## System Functional Requirements
