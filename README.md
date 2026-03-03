@@ -68,22 +68,20 @@ This section presents the visual documentation of the rover, including real prot
 ---
 ## Bill of Materials (BOM)
 
-### Controller
-- **Raspberry Pi 4 Model B (4GB recommended) ×1**
-- **Motor Expansion Board ×1**
-- **Sensor Kit ×1 set**
-- **Analog Temperature Sensor Module ×1**
-- **PCF8591 ADC/DAC Module ×1**
-- **Active Buzzer ×1**
-- **Joystick Module ×1**
-- **RGB LED Module ×1**
-- **T-Type GPIO Expansion Board (T-Cobbler) ×1**
-- **IR Line Tracking Module ×1**
-- **IR Receiver + IR Remote Controller ×1 set**
-- **USB Camera + Pan-Tilt Servo Gimbal ×1 set**
-- **Breadboard ×1**
-- **Voltmeter Module ×1**
-
+- Raspberry Pi 4 Model B (4GB recommended)
+- Motor Expansion Board
+- Sensor Kit
+- Analog Temperature Sensor Module
+- PCF8591 ADC/DAC Module
+- Active Buzzer
+- Joystick Module
+- RGB LED Module
+- T-Type GPIO Expansion Board (T-Cobbler)
+- IR Line Tracking Module
+- IR Receiver + IR Remote Controller
+- USB Camera + Pan-Tilt Servo Gimbal
+- Breadboard
+- Voltmeter Module
 ---
 
 ## System Functional Requirements
