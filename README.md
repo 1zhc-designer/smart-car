@@ -67,9 +67,8 @@ This section presents the visual documentation of the rover, including real prot
 
 ---
 ## Bill of Materials (BOM)
-
-- Raspberry Pi 4 Model B (4GB recommended)
-- Motor Expansion Board
+- Raspberry Pi 4 Model B
+- Motor Expansion Board ([Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf))
 - Sensor Kit
 - Analog Temperature Sensor Module
 - PCF8591 ADC/DAC Module
@@ -82,6 +81,7 @@ This section presents the visual documentation of the rover, including real prot
 - USB Camera + Pan-Tilt Servo Gimbal
 - Breadboard
 - Voltmeter Module
+
 ---
 
 ## System Functional Requirements
