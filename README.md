@@ -73,6 +73,7 @@ This section presents the visual documentation of the rover, including real prot
 #### **Sensor Kit**
 #### **Analog Temperature Sensor Module**
 #### **PCF8591 ADC/DAC Module**
+[Schematic PDF](schematics/pcf8591_adc_dac_schematic.pdf)
 #### **Active Buzzer**
 #### **Joystick Module**
 #### **RGB LED Module**
