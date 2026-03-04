@@ -72,6 +72,7 @@ This section presents the visual documentation of the rover, including real prot
 [Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf)
 #### **Sensor Kit**
 #### **Analog Temperature Sensor Module**
+![Analog Temperature Sensor Wiring](schematics/analog_temperature_sensor_wiring.jpg)
 #### **PCF8591 ADC/DAC Module**
 ![PCF8591 ADC/DAC Module Schematic](schematics/pcf8591_adc_dac_schematic.png)
 #### **Active Buzzer**
