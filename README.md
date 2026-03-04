@@ -344,7 +344,12 @@ _TODO_
 ---
 
 ## Authors and Contributions
-_TODO_
+
+- **Huichuan Zheng** - Overall project planning, code integration/merging, and main program implementation.
+- **Rui Wang** - Motor driving module, IR remote configuration, and program implementation.
+- **Yukun Shi** - Temperature-sensor intelligent control system configuration and programming, plus IR line-tracking implementation.
+- **Xinge Rao** - README documentation, and camera configuration.
+
 
 ---
 
