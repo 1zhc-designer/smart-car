@@ -79,6 +79,7 @@ This section presents the visual documentation of the rover, including real prot
 #### **RGB LED Module**
 #### **T-Type GPIO Expansion Board (T-Cobbler)**
 #### **IR Line Tracking Module**
+![IR Line Tracking Module Schematic](schematics/ir_line_tracking_module_schematic.png)
 #### **IR Receiver + IR Remote Controller**
 #### **USB Camera + Pan-Tilt Servo Gimbal**
 #### **Breadboard**
