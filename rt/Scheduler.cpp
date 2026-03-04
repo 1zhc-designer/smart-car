@@ -26,6 +26,12 @@ inline void closeFd(int& fd) {
     }
 }
 
+inline uint64_t toMicros(std::chrono::steady_clock::duration d) {
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(d).count()
+    );
+}
+
 inline void setTimerOnce(int timer_fd, std::chrono::milliseconds d) {
     itimerspec its{};
     its.it_value.tv_sec = static_cast<time_t>(d.count() / 1000);
@@ -50,9 +56,9 @@ inline void eventfdNotify(int event_fd) {
 inline void eventfdDrain(int event_fd) {
     uint64_t v;
     while (true) {
-        ssize_t n = ::read(event_fd, &v, sizeof(v));
-        if (n == static_cast<ssize_t>(sizeof(v))) continue;
-        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
+        ssize_t r = ::read(event_fd, &v, sizeof(v));
+        if (r == static_cast<ssize_t>(sizeof(v))) continue;
+        if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
         break;
     }
 }
@@ -61,72 +67,71 @@ inline void timerfdDrain(int timer_fd) {
     uint64_t expirations;
     (void)::read(timer_fd, &expirations, sizeof(expirations));
 }
-
-inline uint64_t toMicros(std::chrono::steady_clock::duration d) {
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(d).count()
-    );
-}
 } // namespace
 
-// ===== LatencyStats =====
 void Scheduler::LatencyStats::add(uint64_t us) {
     samples_us[write_idx] = us;
     write_idx = (write_idx + 1) % kLatencyBufSize;
+    count++;
 
-    if (count < std::numeric_limits<std::size_t>::max()) {
-        ++count;
-    }
-    if (us < min_us) min_us = us;
-    if (us > max_us) max_us = us;
+    min_us = std::min(min_us, us);
+    max_us = std::max(max_us, us);
     sum_us += static_cast<long double>(us);
 }
 
 void Scheduler::LatencyStats::snapshot(std::array<uint64_t, kLatencyBufSize>& out,
-                                       std::size_t& valid,
-                                       std::size_t& total_count,
-                                       uint64_t& min_out,
-                                       uint64_t& max_out,
-                                       long double& sum_out) const {
+                                      std::size_t& valid,
+                                      std::size_t& total_count,
+                                      uint64_t& min_out,
+                                      uint64_t& max_out,
+                                      long double& sum_out) const {
     out = samples_us;
-    valid = (count < kLatencyBufSize) ? count : kLatencyBufSize;
     total_count = count;
+    valid = std::min<std::size_t>(count, kLatencyBufSize);
     min_out = (count == 0) ? 0 : min_us;
     max_out = (count == 0) ? 0 : max_us;
     sum_out = sum_us;
 }
 
-// ===== Scheduler =====
 Scheduler::Scheduler(MotionController& mc) : mc_(mc) {}
 
-Scheduler::~Scheduler() { stop(); }
+Scheduler::~Scheduler() {
+    stop();
+}
 
 void Scheduler::start() {
     if (running_) return;
+    running_ = true;
 
-    epoll_fd_ = ::epoll_create1(EPOLL_CLOEXEC);
+    epoll_fd_ = ::epoll_create1(0);
     if (epoll_fd_ < 0) throwSys("epoll_create1");
 
-    event_fd_ = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    timer_fd_ = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+    if (timer_fd_ < 0) throwSys("timerfd_create");
+
+    event_fd_ = ::eventfd(0, EFD_NONBLOCK);
     if (event_fd_ < 0) throwSys("eventfd");
 
-    timer_fd_ = ::timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK);
-    if (timer_fd_ < 0) throwSys("timerfd_create");
-    disarmTimer(timer_fd_);
-
-    auto addToEpoll = [&](int fd) {
+    // Add timer_fd_ to epoll
+    {
         epoll_event ev{};
         ev.events = EPOLLIN;
-        ev.data.fd = fd;
-        if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, fd, &ev) < 0) {
-            throwSys("epoll_ctl(ADD)");
+        ev.data.fd = timer_fd_;
+        if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, timer_fd_, &ev) < 0) {
+            throwSys("epoll_ctl(add timer_fd)");
         }
-    };
+    }
 
-    addToEpoll(event_fd_);
-    addToEpoll(timer_fd_);
+    // Add event_fd_ to epoll
+    {
+        epoll_event ev{};
+        ev.events = EPOLLIN;
+        ev.data.fd = event_fd_;
+        if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, event_fd_, &ev) < 0) {
+            throwSys("epoll_ctl(add event_fd)");
+        }
+    }
 
-    running_ = true;
     worker_ = std::thread(&Scheduler::workerLoop, this);
 }
 
@@ -134,17 +139,18 @@ void Scheduler::stop() {
     if (!running_) return;
     running_ = false;
 
+    // Wake the worker so epoll_wait can return and exit.
     if (event_fd_ >= 0) eventfdNotify(event_fd_);
+
     if (worker_.joinable()) worker_.join();
 
-    // failsafe stop
+    // Safety stop on exit.
     mc_.apply(Motion::Stop, 0);
 
     closeFd(timer_fd_);
     closeFd(event_fd_);
     closeFd(epoll_fd_);
 
-    // Print latency summary after worker has stopped.
     printLatencySummary();
 }
 
@@ -160,6 +166,17 @@ void Scheduler::enqueue(const MotionTask& task) {
 void Scheduler::clear() {
     std::lock_guard<std::mutex> lk(mtx_);
     q_.clear();
+}
+
+void Scheduler::replaceNow(const MotionTask& task) {
+    QueuedTask qt{task, Clock::now()};
+    {
+        std::lock_guard<std::mutex> lk(mtx_);
+        q_.clear();
+        q_.push_front(qt);
+    }
+    // Notify worker to preempt immediately.
+    if (event_fd_ >= 0) eventfdNotify(event_fd_);
 }
 
 void Scheduler::recordLatencyUs(uint64_t us) {
@@ -206,11 +223,20 @@ void Scheduler::workerLoop() {
             const int fd = events[i].data.fd;
 
             if (fd == event_fd_) {
+                // A new task arrived (or stop requested). Preempt immediately.
                 eventfdDrain(event_fd_);
-                if (!task_active_) {
-                    startNextTask();
+
+                // If a task is currently active, cancel its timer so it does not "win later".
+                if (task_active_) {
+                    disarmTimer(timer_fd_);
+                    task_active_ = false;
                 }
+
+                // Start the newest queued task (if any).
+                startNextTask();
+
             } else if (fd == timer_fd_) {
+                // Current task duration elapsed.
                 timerfdDrain(timer_fd_);
                 if (task_active_) {
                     mc_.apply(Motion::Stop, 0);
@@ -242,20 +268,22 @@ void Scheduler::printLatencySummary() {
         return;
     }
 
-    std::vector<uint64_t> sorted(buf.begin(), buf.begin() + static_cast<long>(valid));
+    std::vector<uint64_t> sorted(buf.begin(), buf.begin() + valid);
     std::sort(sorted.begin(), sorted.end());
 
-    // p99 over the retained window (up to kLatencyBufSize most recent samples)
-    const std::size_t p99_idx = (valid == 1) ? 0 : ((valid - 1) * 99) / 100;
-    const uint64_t p99_us = sorted[p99_idx];
+    auto pct = [&](double p) -> uint64_t {
+        const std::size_t idx = static_cast<std::size_t>(p * (sorted.size() - 1));
+        return sorted[idx];
+    };
 
-    const long double avg_us = sum_us / static_cast<long double>(total_count);
+    const long double mean = sum_us / static_cast<long double>(total_count);
 
-    std::cout << "[Scheduler Latency] enqueue->apply (microseconds)\n"
-              << "  total_samples = " << total_count
-              << " (retained " << valid << ")\n"
-              << "  min = " << min_us << " us\n"
-              << "  avg = " << static_cast<double>(avg_us) << " us\n"
-              << "  p99 = " << p99_us << " us  (over retained window)\n"
-              << "  max = " << max_us << " us\n";
+    std::cout << "[Scheduler Latency us] samples=" << total_count
+              << " min=" << min_us
+              << " p50=" << pct(0.50)
+              << " p90=" << pct(0.90)
+              << " p99=" << pct(0.99)
+              << " max=" << max_us
+              << " mean=" << static_cast<double>(mean)
+              << "\n";
 }
