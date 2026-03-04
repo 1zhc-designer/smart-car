@@ -10,9 +10,9 @@ add_executable(smartcar
     motion/MotionController.cpp
     rt/Scheduler.cpp
     ir/IrRemote.cpp
+    monitor/MonitorService.cpp
 )
 
 target_include_directories(smartcar PRIVATE .)
 
-# Link against wiringPi, LIRC client library, and pthread for std::thread
-target_link_libraries(smartcar PRIVATE wiringPi lirc_client pthread)
+target_link_libraries(smartcar PRIVATE wiringPi lirc_client pthread m)
