@@ -67,39 +67,22 @@ This section presents the visual documentation of the rover, including real prot
 
 ---
 ## Bill of Materials (BOM)
-
-This section lists the core hardware modules used in the Greenhouse Inspection Rover.
-
 #### **Raspberry Pi 4 Model B (4GB recommended)**
-
 #### **Motor Expansion Board**
 [Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf)
-
 #### **Sensor Kit**
-
 #### **Analog Temperature Sensor Module**
-![Analog Temperature Sensor Wiring](schematics/analog_temperature_sensor_wiring.jpg)
-
 #### **PCF8591 ADC/DAC Module**
-![PCF8591 ADC/DAC Module Schematic](schematics/pcf8591_adc_dac_schematic.jpg)
-
+![PCF8591 ADC/DAC Module Schematic](schematics/pcf8591_adc_dac_schematic.png)
 #### **Active Buzzer**
-
 #### **Joystick Module**
-
 #### **RGB LED Module**
-
 #### **T-Type GPIO Expansion Board (T-Cobbler)**
-
 #### **IR Line Tracking Module**
 ![IR Line Tracking Module Schematic](schematics/ir_line_tracking_module_schematic.png)
-
 #### **IR Receiver + IR Remote Controller**
-
 #### **USB Camera + Pan-Tilt Servo Gimbal**
-
 #### **Breadboard**
-
 #### **Voltmeter Module**
 ---
 
