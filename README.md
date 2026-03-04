@@ -97,6 +97,8 @@ This section lists the core hardware modules used in the Greenhouse Inspection R
 #### **IR Receiver + IR Remote Controller**
 
 #### **USB Camera + Pan-Tilt Servo Gimbal**
+![Fruit Color Recognition - Target Red](images/color_model_rgb_hsv_cmyk.jpg)
+Fruit Color Recognition (Target: Red). This figure shows the color model diagram.
 
 #### **Breadboard**
 
