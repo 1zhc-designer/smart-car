@@ -3,6 +3,8 @@
 #include "rt/Scheduler.hpp"
 #include "ir/IrRemote.hpp"
 #include "monitor/MonitorService.hpp"
+#include "monitor/CameraService.hpp"
+
 #include <iostream>
 
 int main() {
@@ -16,21 +18,26 @@ int main() {
         MotionController motion(driver);
         Scheduler sched(motion);
 
-        // Start scheduler thread (unchanged behaviour)
+
         sched.start();
 
-        // Start IR remote thread (unchanged behaviour)
         IrRemote remote(sched);
         remote.start();
 
-        // Start monitor service in its own event-driven thread (no blocking main)
+
         MonitorService monitor;
         monitor.start();
 
-        std::cout << "IR control + Temperature monitor enabled. Press Enter to exit...\n";
+        CameraService camera(0, "./captures");
+        camera.start();
+
+        std::cout << "IR control + Temperature monitor + Camera monitor enabled.\n";
+        std::cout << "Use the VNC desktop camera window. Press ESC in that window to close camera monitoring.\n";
+        std::cout << "Press Enter in terminal to exit the whole program...\n";
         std::cin.get();
 
-        monitor.stop();   // graceful exit
+        camera.stop();
+        monitor.stop();
         remote.stop();
         sched.stop();
         return 0;
