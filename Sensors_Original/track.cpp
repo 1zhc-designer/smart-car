@@ -96,8 +96,8 @@ private:
 class LineFollowerDO3 {
 public:
     struct Params {
-        // 课程设计低速稳态参数（木地板循黑线）
-        int baseSpeed      = 28;   // 略低一点，更稳
+        // 木质地板循白线：低速稳态保守参数
+        int baseSpeed      = 28;
         int maxSpeed       = 50;
         int minSpeed       = 0;
 
@@ -119,15 +119,20 @@ public:
     // true  -> 检测到目标线时 DO = LOW
     // false -> 检测到目标线时 DO = HIGH
     //
-    // 这里“目标线”已经是黑线
-    explicit LineFollowerDO3(IMotorDriver& driver,
-                             bool activeLow = false,
-                             Params params = Params())
-        : driver_(driver), activeLow_(activeLow), p_(params)
-    {
-        normalizeParams_();
-        resetFilter_();
-    }
+    // 这里“目标线”已经是白线
+    explicit LineFollowerDO3(IMotorDriver& driver, bool activeLow = true)
+    : driver_(driver), activeLow_(activeLow), p_()
+{
+    normalizeParams_();
+    resetFilter_();
+}
+
+LineFollowerDO3(IMotorDriver& driver, bool activeLow, const Params& params)
+    : driver_(driver), activeLow_(activeLow), p_(params)
+{
+    normalizeParams_();
+    resetFilter_();
+}
 
     void begin() {
         // 传感器：BCM 13/19/26 -> wiringPi 23/24/25
@@ -156,13 +161,13 @@ public:
         if (any) {
             lastSeenMs_ = now;
             if (code == 0b100 || code == 0b110) {
-                lastBias_ = -1; // 黑线偏左
+                lastBias_ = -1; // 白线偏左
             } else if (code == 0b001 || code == 0b011) {
-                lastBias_ = +1; // 黑线偏右
+                lastBias_ = +1; // 白线偏右
             }
         }
 
-        // 111: 大面积都检测到黑色，减速直行
+        // 111: 大面积都检测到白色，减速直行
         if (all) {
             drive_(p_.junctionSpeed, p_.junctionSpeed);
             return;
@@ -183,32 +188,32 @@ public:
         int rightSpeed = base;
 
         switch (code) {
-            case 0b010: // 中间在黑线上
+            case 0b010: // 中间在白线上
                 leftSpeed = base;
                 rightSpeed = base;
                 break;
 
-            case 0b110: // 左+中检测到黑线 -> 向左微调
+            case 0b110: // 左+中检测到白线 -> 向左微调
                 leftSpeed = base - soft;
                 rightSpeed = base + soft;
                 break;
 
-            case 0b011: // 中+右检测到黑线 -> 向右微调
+            case 0b011: // 中+右检测到白线 -> 向右微调
                 leftSpeed = base + soft;
                 rightSpeed = base - soft;
                 break;
 
-            case 0b100: // 仅左检测到黑线 -> 强向左纠偏
+            case 0b100: // 仅左检测到白线 -> 强向左纠偏
                 leftSpeed = base - hard;
                 rightSpeed = base + hard;
                 break;
 
-            case 0b001: // 仅右检测到黑线 -> 强向右纠偏
+            case 0b001: // 仅右检测到白线 -> 强向右纠偏
                 leftSpeed = base + hard;
                 rightSpeed = base - hard;
                 break;
 
-            case 0b101: // 左右检测到黑线，中间未检测到
+            case 0b101: // 左右检测到白线，中间未检测到
                 if (lastBias_ < 0) {
                     leftSpeed = base - soft;
                     rightSpeed = base + soft;
@@ -375,13 +380,13 @@ int main() {
 
         WiringPiMotorDriver motor(motorPins);
 
-        // 木制地板循黑线：
-        // 默认按“黑线 DO = HIGH”处理，所以 activeLow = false
-        // 如果你实测黑线时 DO = LOW，把 false 改成 true
-        LineFollowerDO3 follower(motor, false);
+        // 木质地板循白线：
+        // 默认按“白线 DO = LOW”处理，所以 activeLow = true
+        // 如果你实测白线时 DO = HIGH，把 true 改成 false
+        LineFollowerDO3 follower(motor, true);
         follower.begin();
 
-        std::cout << "Black line follower started. Press Ctrl+C to exit.\n";
+        std::cout << "White line follower started. Press Ctrl+C to exit.\n";
 
         while (true) {
             follower.update();
