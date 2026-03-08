@@ -96,43 +96,47 @@ private:
 class LineFollowerDO3 {
 public:
     struct Params {
-        // 木质地板循白线：低速稳态保守参数
-        int baseSpeed      = 28;
-        int maxSpeed       = 50;
-        int minSpeed       = 0;
+        int baseSpeed;
+        int maxSpeed;
+        int minSpeed;
 
-        int softDelta      = 6;
-        int hardDelta      = 14;
-        int junctionSpeed  = 22;
-        int pivotSpeed     = 24;
+        int softDelta;
+        int hardDelta;
+        int junctionSpeed;
+        int pivotSpeed;
 
-        int filterWindow   = 7;
+        int filterWindow;
 
-        int lostHoldMs     = 220;
-        int lostPivotMs    = 1200;
-        int lostStopMs     = 3500;
+        int lostSearchMs; // 丢线后持续搜索时间
+        int reacquireMs;
 
-        int reacquireMs    = 180;
+        Params()
+            : baseSpeed(28),
+              maxSpeed(50),
+              minSpeed(0),
+              softDelta(6),
+              hardDelta(14),
+              junctionSpeed(22),
+              pivotSpeed(24),
+              filterWindow(7),
+              lostSearchMs(2000),   // 按你的要求：搜索2秒
+              reacquireMs(180) {}
     };
 
-    // activeLow:
-    // true  -> 检测到目标线时 DO = LOW
-    // false -> 检测到目标线时 DO = HIGH
-    //
-    // 这里“目标线”已经是白线
+    // 默认：白线时 DO = LOW
     explicit LineFollowerDO3(IMotorDriver& driver, bool activeLow = true)
-    : driver_(driver), activeLow_(activeLow), p_()
-{
-    normalizeParams_();
-    resetFilter_();
-}
+        : driver_(driver), activeLow_(activeLow), p_()
+    {
+        normalizeParams_();
+        resetFilter_();
+    }
 
-LineFollowerDO3(IMotorDriver& driver, bool activeLow, const Params& params)
-    : driver_(driver), activeLow_(activeLow), p_(params)
-{
-    normalizeParams_();
-    resetFilter_();
-}
+    LineFollowerDO3(IMotorDriver& driver, bool activeLow, const Params& params)
+        : driver_(driver), activeLow_(activeLow), p_(params)
+    {
+        normalizeParams_();
+        resetFilter_();
+    }
 
     void begin() {
         // 传感器：BCM 13/19/26 -> wiringPi 23/24/25
@@ -193,22 +197,22 @@ LineFollowerDO3(IMotorDriver& driver, bool activeLow, const Params& params)
                 rightSpeed = base;
                 break;
 
-            case 0b110: // 左+中检测到白线 -> 向左微调
+            case 0b110: // 左+中 -> 向左微调
                 leftSpeed = base - soft;
                 rightSpeed = base + soft;
                 break;
 
-            case 0b011: // 中+右检测到白线 -> 向右微调
+            case 0b011: // 中+右 -> 向右微调
                 leftSpeed = base + soft;
                 rightSpeed = base - soft;
                 break;
 
-            case 0b100: // 仅左检测到白线 -> 强向左纠偏
+            case 0b100: // 仅左 -> 强向左纠偏
                 leftSpeed = base - hard;
                 rightSpeed = base + hard;
                 break;
 
-            case 0b001: // 仅右检测到白线 -> 强向右纠偏
+            case 0b001: // 仅右 -> 强向右纠偏
                 leftSpeed = base + hard;
                 rightSpeed = base - hard;
                 break;
@@ -245,26 +249,24 @@ private:
     Params p_;
 
     // 传感器 wiringPi 编号
-    static constexpr int kPinL = 23; // BCM13
-    static constexpr int kPinC = 24; // BCM19
-    static constexpr int kPinR = 25; // BCM26
+    static const int kPinL = 23; // BCM13
+    static const int kPinC = 24; // BCM19
+    static const int kPinR = 25; // BCM26
+    static const int kMaxWin = 9;
 
-    // 多数表决滤波
-    static constexpr int kMaxWin = 9;
-    int win_ = 7;
-    int idx_ = 0;
-    int cnt_ = 0;
-    std::array<uint8_t, kMaxWin> bufL_{};
-    std::array<uint8_t, kMaxWin> bufC_{};
-    std::array<uint8_t, kMaxWin> bufR_{};
+    int win_;
+    int idx_;
+    int cnt_;
+    std::array<uint8_t, kMaxWin> bufL_;
+    std::array<uint8_t, kMaxWin> bufC_;
+    std::array<uint8_t, kMaxWin> bufR_;
 
-    int filtL_ = 0;
-    int filtC_ = 0;
-    int filtR_ = 0;
+    int filtL_;
+    int filtC_;
+    int filtR_;
 
-    // 状态
-    int lastBias_ = 0;        // -1 左，+1 右
-    unsigned lastSeenMs_ = 0;
+    int lastBias_;
+    unsigned lastSeenMs_;
 
     void normalizeParams_() {
         p_.baseSpeed     = std::clamp(p_.baseSpeed, 0, 100);
@@ -285,10 +287,8 @@ private:
         }
         win_ = p_.filterWindow;
 
-        p_.lostHoldMs  = std::max(0, p_.lostHoldMs);
-        p_.lostPivotMs = std::max(p_.lostHoldMs, p_.lostPivotMs);
-        p_.lostStopMs  = std::max(p_.lostPivotMs, p_.lostStopMs);
-        p_.reacquireMs = std::max(0, p_.reacquireMs);
+        p_.lostSearchMs = std::max(0, p_.lostSearchMs);
+        p_.reacquireMs  = std::max(0, p_.reacquireMs);
     }
 
     int readOnLine_(int pin) const {
@@ -318,7 +318,10 @@ private:
             ++cnt_;
         }
 
-        int sumL = 0, sumC = 0, sumR = 0;
+        int sumL = 0;
+        int sumC = 0;
+        int sumR = 0;
+
         for (int i = 0; i < cnt_; ++i) {
             sumL += bufL_[i];
             sumC += bufC_[i];
@@ -334,24 +337,19 @@ private:
     void handleLost_(unsigned now) {
         const unsigned lostFor = now - lastSeenMs_;
 
-        if (lostFor <= static_cast<unsigned>(p_.lostHoldMs)) {
+        // 丢线后继续搜索 2 秒
+        if (lostFor <= static_cast<unsigned>(p_.lostSearchMs)) {
             if (lastBias_ >= 0) {
+                // 最近偏右或未知：向右搜
                 drive_(p_.pivotSpeed, std::max(p_.pivotSpeed - 10, 0));
             } else {
+                // 最近偏左：向左搜
                 drive_(std::max(p_.pivotSpeed - 10, 0), p_.pivotSpeed);
             }
             return;
         }
 
-        if (lostFor <= static_cast<unsigned>(p_.lostPivotMs)) {
-            if (lastBias_ >= 0) {
-                drive_(p_.pivotSpeed, 0);
-            } else {
-                drive_(0, p_.pivotSpeed);
-            }
-            return;
-        }
-
+        // 超过 2 秒仍找不到线：自动停止
         driver_.stopAll();
     }
 
@@ -362,8 +360,9 @@ private:
         leftSpeed = std::clamp(leftSpeed, 0, 100);
         rightSpeed = std::clamp(rightSpeed, 0, 100);
 
-        driver_.setLeft(leftSpeed, true);
-        driver_.setRight(rightSpeed, true);
+        // 这里按你当前硬件修正为 false，避免小车后退
+        driver_.setLeft(leftSpeed, false);
+        driver_.setRight(rightSpeed, false);
     }
 };
 
@@ -373,7 +372,7 @@ int main() {
         // 电机：
         // 左：BCM 18/27/22 -> wPi 1/2/3
         // 右：BCM 23/24/25 -> wPi 4/5/6
-        WiringPiMotorDriver::Pins motorPins{
+        WiringPiMotorDriver::Pins motorPins = {
             1, 2, 3,
             4, 5, 6
         };
@@ -381,12 +380,12 @@ int main() {
         WiringPiMotorDriver motor(motorPins);
 
         // 木质地板循白线：
-        // 默认按“白线 DO = LOW”处理，所以 activeLow = true
-        // 如果你实测白线时 DO = HIGH，把 true 改成 false
+        // 默认按“白线 DO = LOW”处理
+        // 若实测白线时 DO = HIGH，请改成 false
         LineFollowerDO3 follower(motor, true);
         follower.begin();
 
-        std::cout << "White line follower started. Press Ctrl+C to exit.\n";
+        std::cout << "White line follower started. Lost line will search for 2 seconds, then stop.\n";
 
         while (true) {
             follower.update();
