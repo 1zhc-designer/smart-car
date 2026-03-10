@@ -5,11 +5,13 @@
 #include <chrono>
 #include <thread>
 
-struct lirc_config; // Forward declaration from lirc
+struct lirc_config;
+
+class GimbalService;
 
 class IrRemote final {
 public:
-    explicit IrRemote(Scheduler& sched);
+    IrRemote(Scheduler& sched, GimbalService& gimbal);
     ~IrRemote();
 
     IrRemote(const IrRemote&) = delete;
@@ -23,15 +25,17 @@ private:
     void handleCode(const char* code);
 
     Scheduler& sched_;
+    GimbalService& gimbal_;
+
     std::atomic<bool> running_{false};
     std::thread th_;
 
     lirc_config* config_{nullptr};
 
-    // Debounce state
     Motion last_motion_{Motion::Stop};
-    std::chrono::steady_clock::time_point last_ts_{};
+    std::chrono::steady_clock::time_point last_motion_ts_{};
+    std::chrono::steady_clock::time_point last_gimbal_ts_{};
 
-    // Small debounce for better responsiveness
-    static constexpr auto kDebounce = std::chrono::milliseconds(30);
+    static constexpr auto kMotionDebounce = std::chrono::milliseconds(30);
+    static constexpr auto kGimbalDebounce = std::chrono::milliseconds(400);
 };
