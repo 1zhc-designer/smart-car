@@ -4,6 +4,7 @@
 #include "ir/IrRemote.hpp"
 #include "monitor/MonitorService.hpp"
 #include "monitor/CameraService.hpp"
+#include "gimbal/GimbalService.hpp"
 
 #include <iostream>
 
@@ -18,12 +19,13 @@ int main() {
         MotionController motion(driver);
         Scheduler sched(motion);
 
+        GimbalService gimbal;
+        gimbal.init();
 
         sched.start();
 
-        IrRemote remote(sched);
+        IrRemote remote(sched, gimbal);
         remote.start();
-
 
         MonitorService monitor;
         monitor.start();
@@ -31,9 +33,8 @@ int main() {
         CameraService camera(0, "./captures");
         camera.start();
 
-        std::cout << "IR control + Temperature monitor + Camera monitor enabled.\n";
-        std::cout << "Use the VNC desktop camera window. Press ESC in that window to close camera monitoring.\n";
-        std::cout << "Press Enter in terminal to exit the whole program...\n";
+        std::cout << "IR motion + IR gimbal + Temperature monitor + Camera monitor enabled.\n";
+        std::cout << "Press Enter to exit the whole program...\n";
         std::cin.get();
 
         camera.stop();

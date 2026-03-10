@@ -1,5 +1,7 @@
 #include "ir/IrRemote.hpp"
 
+#include "gimbal/GimbalService.hpp"
+
 #include <lirc/lirc_client.h>
 #include <cstdlib>
 #include <cstring>
@@ -7,7 +9,6 @@
 #include <chrono>
 
 namespace {
-// Original key strings (kept identical for strstr matching)
 static const char* keymap[21] = {
     " KEY_CHANNELDOWN ",
     " KEY_CHANNEL ",
@@ -36,48 +37,44 @@ inline bool contains(const char* s, const char* sub) {
     return s && sub && std::strstr(s, sub);
 }
 
-// Tunables (same as your original intent)
 static constexpr int kSpeedForward = 50;
-static constexpr int kSpeedTurn    = 70;
+static constexpr int kSpeedTurn = 70;
 
-// Long duration is fine now because Scheduler is preemptive.
-// It will be interrupted immediately by replaceNow() when a new command arrives.
 static const std::chrono::milliseconds kContinuous =
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::hours(24));
 
 static constexpr auto kStopDur = std::chrono::milliseconds(10);
 
-// Mapping matches your original C: [1]=up, [7]=down, [3]=left, [5]=right, [4]=stop
 inline bool decodeMotion(const char* code, Motion& m, int& speed, std::chrono::milliseconds& dur) {
     m = Motion::Stop;
     speed = 0;
     dur = kStopDur;
 
-    if (contains(code, keymap[1])) {         // Up
+    if (contains(code, keymap[1])) {
         m = Motion::Up;
         speed = kSpeedForward;
         dur = kContinuous;
         return true;
     }
-    if (contains(code, keymap[7])) {         // Down
+    if (contains(code, keymap[7])) {
         m = Motion::Down;
         speed = kSpeedForward;
         dur = kContinuous;
         return true;
     }
-    if (contains(code, keymap[3])) {         // Left
+    if (contains(code, keymap[3])) {
         m = Motion::Left;
         speed = kSpeedTurn;
         dur = kContinuous;
         return true;
     }
-    if (contains(code, keymap[5])) {         // Right
+    if (contains(code, keymap[5])) {
         m = Motion::Right;
         speed = kSpeedTurn;
         dur = kContinuous;
         return true;
     }
-    if (contains(code, keymap[4])) {         // Stop
+    if (contains(code, keymap[4])) {
         m = Motion::Stop;
         speed = 0;
         dur = kStopDur;
@@ -85,9 +82,28 @@ inline bool decodeMotion(const char* code, Motion& m, int& speed, std::chrono::m
     }
     return false;
 }
-} // namespace
 
-IrRemote::IrRemote(Scheduler& sched) : sched_(sched) {}
+enum class GimbalCommand {
+    None,
+    TiltUp,
+    TiltDown,
+    PanLeft,
+    PanRight,
+    Reset
+};
+
+inline GimbalCommand decodeGimbal(const char* code) {
+    if (contains(code, " KEY_NUMERIC_2 ")) return GimbalCommand::TiltUp;
+    if (contains(code, " KEY_NUMERIC_8 ")) return GimbalCommand::TiltDown;
+    if (contains(code, " KEY_NUMERIC_4 ")) return GimbalCommand::PanLeft;
+    if (contains(code, " KEY_NUMERIC_6 ")) return GimbalCommand::PanRight;
+    if (contains(code, " KEY_NUMERIC_5 ")) return GimbalCommand::Reset;
+    return GimbalCommand::None;
+}
+}  // namespace
+
+IrRemote::IrRemote(Scheduler& sched, GimbalService& gimbal)
+    : sched_(sched), gimbal_(gimbal) {}
 
 IrRemote::~IrRemote() {
     stop();
@@ -96,12 +112,10 @@ IrRemote::~IrRemote() {
 void IrRemote::start() {
     if (running_) return;
 
-    // Initialize LIRC and open the client socket
     if (lirc_init("ircontrol", 1) == -1) {
         throw std::runtime_error("lirc_init failed (is lircd running and permissions correct?)");
     }
 
-    // Load LIRC config (default locations like /etc/lirc/lircrc or ~/.lircrc)
     if (lirc_readconfig(nullptr, &config_, nullptr) != 0) {
         lirc_deinit();
         config_ = nullptr;
@@ -109,9 +123,9 @@ void IrRemote::start() {
     }
 
     last_motion_ = Motion::Stop;
-    last_ts_ = std::chrono::steady_clock::now();
+    last_motion_ts_ = std::chrono::steady_clock::now();
+    last_gimbal_ts_ = std::chrono::steady_clock::now();
 
-    // Run the blocking read loop in a dedicated thread (does not block Scheduler)
     running_ = true;
     th_ = std::thread(&IrRemote::loop, this);
 }
@@ -129,17 +143,14 @@ void IrRemote::stop() {
     }
     lirc_deinit();
 
-    // Failsafe stop on shutdown
     sched_.replaceNow({Motion::Stop, 0, kStopDur});
 }
 
 void IrRemote::loop() {
-    // lirc_nextcode() blocks; keeping it in this thread preserves scheduler responsiveness
     while (running_) {
         char* code = nullptr;
 
         if (lirc_nextcode(&code) != 0) {
-            // If lircd disconnects or an error occurs, exit cleanly
             break;
         }
 
@@ -158,23 +169,56 @@ void IrRemote::loop() {
 }
 
 void IrRemote::handleCode(const char* code) {
+    const auto now = std::chrono::steady_clock::now();
+
+    switch (decodeGimbal(code)) {
+        case GimbalCommand::TiltUp:
+            if ((now - last_gimbal_ts_) >= kGimbalDebounce) {
+                gimbal_.tiltUp();
+                last_gimbal_ts_ = now;
+            }
+            return;
+        case GimbalCommand::TiltDown:
+            if ((now - last_gimbal_ts_) >= kGimbalDebounce) {
+                gimbal_.tiltDown();
+                last_gimbal_ts_ = now;
+            }
+            return;
+        case GimbalCommand::PanLeft:
+            if ((now - last_gimbal_ts_) >= kGimbalDebounce) {
+                gimbal_.panLeft();
+                last_gimbal_ts_ = now;
+            }
+            return;
+        case GimbalCommand::PanRight:
+            if ((now - last_gimbal_ts_) >= kGimbalDebounce) {
+                gimbal_.panRight();
+                last_gimbal_ts_ = now;
+            }
+            return;
+        case GimbalCommand::Reset:
+            if ((now - last_gimbal_ts_) >= kGimbalDebounce) {
+                gimbal_.reset();
+                last_gimbal_ts_ = now;
+            }
+            return;
+        case GimbalCommand::None:
+            break;
+    }
+
     Motion m;
     int speed;
     std::chrono::milliseconds dur;
 
-    // Ignore unrecognized keys
     if (!decodeMotion(code, m, speed, dur)) return;
 
-    const auto now = std::chrono::steady_clock::now();
     const bool same_motion = (m == last_motion_);
-
-    // Debounce repeated identical codes; always allow motion changes immediately.
-    if ((now - last_ts_) < kDebounce) {
+    if ((now - last_motion_ts_) < kMotionDebounce) {
         if (same_motion) return;
     }
-    last_ts_ = now;
+
+    last_motion_ts_ = now;
     last_motion_ = m;
 
-    // Preempt immediately: new command replaces the currently running command.
     sched_.replaceNow({m, speed, dur});
 }
