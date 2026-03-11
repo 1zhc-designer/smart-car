@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -9,7 +10,9 @@
 
 class CameraService {
 public:
-    CameraService(int cameraIndex = 0, const std::string& savePath = "./captures");
+    CameraService(int cameraIndex = 0,
+                  const std::string& savePath = "./captures",
+                  bool showPreviewWindow = true);
     ~CameraService();
 
     CameraService(const CameraService&) = delete;
@@ -19,6 +22,10 @@ public:
     void stop();
 
     bool isRunning() const noexcept;
+    void setPreviewEnabled(bool enabled);
+    bool previewEnabled() const noexcept;
+
+    cv::Mat latestFrame() const;
 
 private:
     void runLoop();
@@ -32,4 +39,9 @@ private:
     std::atomic<bool> stopRequested_{false};
 
     std::thread worker_;
+
+    mutable std::mutex frameMutex_;
+    cv::Mat latestFrame_;
+
+    std::atomic<bool> showPreviewWindow_{true};
 };
