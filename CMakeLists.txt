@@ -4,7 +4,12 @@ project(smartcar LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+
 find_package(OpenCV REQUIRED)
+find_package(Qt5 REQUIRED COMPONENTS Widgets)
 
 include_directories(include)
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -33,4 +38,20 @@ target_link_libraries(smartcar PRIVATE
     lirc_client
     pthread
     ${OpenCV_LIBS}
+)
+
+add_executable(smartcar_gui
+    src/gui/main_gui.cpp
+    src/gui/MainWindow.cpp
+    src/gui/SystemFacade.cpp
+    src/motor/WiringPiMotorDriver.cpp
+    include/gui/MainWindow.hpp
+)
+
+target_link_libraries(smartcar_gui PRIVATE
+    car_logic
+    wiringPi
+    pthread
+    ${OpenCV_LIBS}
+    Qt5::Widgets
 )

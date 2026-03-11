@@ -14,8 +14,12 @@ constexpr int kSaveIntervalSeconds = 2;
 const char* kWindowName = "Real-time Monitor";
 }
 
-CameraService::CameraService(int cameraIndex, const std::string& savePath)
-    : cameraIndex_(cameraIndex), savePath_(savePath) {}
+CameraService::CameraService(int cameraIndex,
+                             const std::string& savePath,
+                             bool showPreviewWindow)
+    : cameraIndex_(cameraIndex),
+      savePath_(savePath),
+      showPreviewWindow_(showPreviewWindow) {}
 
 CameraService::~CameraService() {
     stop();
@@ -23,6 +27,19 @@ CameraService::~CameraService() {
 
 bool CameraService::isRunning() const noexcept {
     return running_.load();
+}
+
+void CameraService::setPreviewEnabled(bool enabled) {
+    showPreviewWindow_.store(enabled);
+}
+
+bool CameraService::previewEnabled() const noexcept {
+    return showPreviewWindow_.load();
+}
+
+cv::Mat CameraService::latestFrame() const {
+    std::lock_guard<std::mutex> lock(frameMutex_);
+    return latestFrame_.clone();
 }
 
 void CameraService::ensureDirectory(const std::string& path) {
@@ -73,7 +90,9 @@ void CameraService::runLoop() {
 
     auto lastSaveTime = std::chrono::steady_clock::now();
 
-    cv::namedWindow(kWindowName, cv::WINDOW_AUTOSIZE);
+    if (showPreviewWindow_.load()) {
+        cv::namedWindow(kWindowName, cv::WINDOW_AUTOSIZE);
+    }
 
     while (!stopRequested_.load()) {
         cap >> frame;
@@ -138,14 +157,26 @@ void CameraService::runLoop() {
             }
         }
 
-        cv::imshow(kWindowName, frame);
+        {
+            std::lock_guard<std::mutex> lock(frameMutex_);
+            latestFrame_ = frame.clone();
+        }
 
-        const char key = static_cast<char>(cv::waitKey(10));
-        if (key == 27) {
-            break;
+        if (showPreviewWindow_.load()) {
+            cv::imshow(kWindowName, frame);
+
+            const char key = static_cast<char>(cv::waitKey(10));
+            if (key == 27) {
+                break;
+            }
+        } else {
+            cv::waitKey(1);
         }
     }
 
     cap.release();
-    cv::destroyWindow(kWindowName);
+
+    if (showPreviewWindow_.load()) {
+        cv::destroyWindow(kWindowName);
+    }
 }
