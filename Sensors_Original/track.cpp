@@ -11,8 +11,6 @@
 class IMotorDriver {
 public:
     virtual ~IMotorDriver() = default;
-
-    // speed: 0..100
     virtual void setLeft(int speed, bool forward) = 0;
     virtual void setRight(int speed, bool forward) = 0;
     virtual void stopAll() = 0;
@@ -107,83 +105,134 @@ public:
 
         int filterWindow;
 
-        int lostSearchMs; // 丢线后持续搜索时间
+        int lostSearchMs;
         int reacquireMs;
 
         Params()
-            : baseSpeed(28),
-              maxSpeed(50),
+            : baseSpeed(22),
+              maxSpeed(40),
               minSpeed(0),
-              softDelta(6),
-              hardDelta(14),
-              junctionSpeed(22),
-              pivotSpeed(24),
+              softDelta(5),
+              hardDelta(12),
+              junctionSpeed(18),
+              pivotSpeed(20),
               filterWindow(7),
-              lostSearchMs(2000),   // 按你的要求：搜索2秒
-              reacquireMs(180) {}
+              lostSearchMs(3000),
+              reacquireMs(220) {}
     };
 
-    // 默认：白线时 DO = LOW
-    explicit LineFollowerDO3(IMotorDriver& driver, bool activeLow = true)
-        : driver_(driver), activeLow_(activeLow), p_()
+    // activeLow:
+    // true  -> 白线时 DO = LOW
+    // false -> 白线时 DO = HIGH
+    explicit LineFollowerDO3(IMotorDriver& driver, bool activeLow = false)
+        : driver_(driver), activeLow_(activeLow), p_(),
+          win_(7), idx_(0), cnt_(0),
+          filtL_(0), filtC_(0), filtR_(0),
+          lastBias_(0), lastSeenMs_(0),
+          buzzerActiveHigh_(true),
+          obstacleActiveLow_(true),
+          buzzerState_(false),
+          lastBeepToggleMs_(0)
     {
         normalizeParams_();
         resetFilter_();
     }
 
     LineFollowerDO3(IMotorDriver& driver, bool activeLow, const Params& params)
-        : driver_(driver), activeLow_(activeLow), p_(params)
+        : driver_(driver), activeLow_(activeLow), p_(params),
+          win_(7), idx_(0), cnt_(0),
+          filtL_(0), filtC_(0), filtR_(0),
+          lastBias_(0), lastSeenMs_(0),
+          buzzerActiveHigh_(true),
+          obstacleActiveLow_(true),
+          buzzerState_(false),
+          lastBeepToggleMs_(0)
     {
         normalizeParams_();
         resetFilter_();
     }
 
     void begin() {
-        // 传感器：BCM 13/19/26 -> wiringPi 23/24/25
+        // 循迹：BCM 13/19/26 -> wiringPi 23/24/25
         pinMode(kPinL, INPUT);
         pinMode(kPinC, INPUT);
         pinMode(kPinR, INPUT);
 
+        // 避障：BCM 16/12 -> wiringPi 27/26
+        pinMode(kObstacleLeftPin, INPUT);
+        pinMode(kObstacleRightPin, INPUT);
+
+        // 蜂鸣器：BCM 17 -> wiringPi 0
+        pinMode(kBuzzerPin, OUTPUT);
+        setBuzzer_(false);
+
         resetFilter_();
         lastSeenMs_ = millis();
         lastBias_ = 0;
+        lastBeepToggleMs_ = millis();
+
         driver_.stopAll();
     }
 
     void update() {
+        const unsigned now = millis();
+
+        // ---------- 避障优先 ----------
+        if (hasObstacle_()) {
+            driver_.stopAll();
+            beepAlert_(now);
+
+            std::cout << "[OBSTACLE] "
+                      << "Left=" << obstacleDetected_(kObstacleLeftPin)
+                      << " Right=" << obstacleDetected_(kObstacleRightPin)
+                      << std::endl;
+            return;
+        } else {
+            setBuzzer_(false);
+        }
+
+        // ---------- 循迹采样 ----------
         sampleAndFilter_();
 
         const int L = filtL_;
         const int C = filtC_;
         const int R = filtR_;
-        const int code = (L << 2) | (C << 1) | R; // LCR
+        const int code = (L << 2) | (C << 1) | R;
 
-        const unsigned now = millis();
+        // ---------- 调试输出 ----------
+        std::cout << "L=" << L
+                  << " C=" << C
+                  << " R=" << R
+                  << " code=" << code
+                  << std::endl;
+
         const bool any = (code != 0);
         const bool all = (code == 0b111);
 
         if (any) {
             lastSeenMs_ = now;
             if (code == 0b100 || code == 0b110) {
-                lastBias_ = -1; // 白线偏左
+                lastBias_ = -1;
             } else if (code == 0b001 || code == 0b011) {
-                lastBias_ = +1; // 白线偏右
+                lastBias_ = +1;
             }
         }
 
-        // 111: 大面积都检测到白色，减速直行
+        // 三路都检测到白线：减速直行
         if (all) {
             drive_(p_.junctionSpeed, p_.junctionSpeed);
             return;
         }
 
-        // 000: 丢线
+        // 丢线
         if (!any) {
             handleLost_(now);
             return;
         }
 
-        const bool reacquire = (now - lastSeenMs_ <= static_cast<unsigned>(p_.reacquireMs));
+        const bool reacquire =
+            (now - lastSeenMs_ <= static_cast<unsigned>(p_.reacquireMs));
+
         const int base = p_.baseSpeed;
         const int soft = reacquire ? std::max(1, p_.softDelta / 2) : p_.softDelta;
         const int hard = reacquire ? std::max(2, p_.hardDelta / 2) : p_.hardDelta;
@@ -192,32 +241,32 @@ public:
         int rightSpeed = base;
 
         switch (code) {
-            case 0b010: // 中间在白线上
+            case 0b010: // 中间在线
                 leftSpeed = base;
                 rightSpeed = base;
                 break;
 
-            case 0b110: // 左+中 -> 向左微调
+            case 0b110: // 左+中
                 leftSpeed = base - soft;
                 rightSpeed = base + soft;
                 break;
 
-            case 0b011: // 中+右 -> 向右微调
+            case 0b011: // 中+右
                 leftSpeed = base + soft;
                 rightSpeed = base - soft;
                 break;
 
-            case 0b100: // 仅左 -> 强向左纠偏
+            case 0b100: // 仅左
                 leftSpeed = base - hard;
                 rightSpeed = base + hard;
                 break;
 
-            case 0b001: // 仅右 -> 强向右纠偏
+            case 0b001: // 仅右
                 leftSpeed = base + hard;
                 rightSpeed = base - hard;
                 break;
 
-            case 0b101: // 左右检测到白线，中间未检测到
+            case 0b101: // 左右在线，中间不在线
                 if (lastBias_ < 0) {
                     leftSpeed = base - soft;
                     rightSpeed = base + soft;
@@ -240,6 +289,7 @@ public:
     }
 
     void stop() {
+        setBuzzer_(false);
         driver_.stopAll();
     }
 
@@ -248,11 +298,17 @@ private:
     bool activeLow_;
     Params p_;
 
-    // 传感器 wiringPi 编号
-    static const int kPinL = 23; // BCM13
-    static const int kPinC = 24; // BCM19
-    static const int kPinR = 25; // BCM26
-    static const int kMaxWin = 9;
+    // 循迹：BCM13/19/26 -> wPi 23/24/25
+    static const int kPinL = 23;
+    static const int kPinC = 24;
+    static const int kPinR = 25;
+
+    // 蜂鸣器/避障：BCM17/16/12 -> wPi 0/27/26
+    static const int kBuzzerPin = 0;
+    static const int kObstacleLeftPin = 27;
+    static const int kObstacleRightPin = 26;
+
+    enum { kMaxWin = 9 };
 
     int win_;
     int idx_;
@@ -268,6 +324,11 @@ private:
     int lastBias_;
     unsigned lastSeenMs_;
 
+    bool buzzerActiveHigh_;
+    bool obstacleActiveLow_;
+    bool buzzerState_;
+    unsigned lastBeepToggleMs_;
+
     void normalizeParams_() {
         p_.baseSpeed     = std::clamp(p_.baseSpeed, 0, 100);
         p_.maxSpeed      = std::clamp(p_.maxSpeed, 0, 100);
@@ -281,7 +342,9 @@ private:
             std::swap(p_.minSpeed, p_.maxSpeed);
         }
 
-        p_.filterWindow = std::clamp(p_.filterWindow, 3, kMaxWin);
+        p_.filterWindow = std::clamp(
+            p_.filterWindow, 3, static_cast<int>(kMaxWin)
+        );
         if ((p_.filterWindow % 2) == 0) {
             p_.filterWindow += 1;
         }
@@ -334,22 +397,44 @@ private:
         filtR_ = (sumR >= half) ? 1 : 0;
     }
 
+    bool obstacleDetected_(int pin) const {
+        const int value = digitalRead(pin);
+        return obstacleActiveLow_ ? (value == LOW) : (value == HIGH);
+    }
+
+    bool hasObstacle_() const {
+        return obstacleDetected_(kObstacleLeftPin) ||
+               obstacleDetected_(kObstacleRightPin);
+    }
+
+    void setBuzzer_(bool on) {
+        buzzerState_ = on;
+        if (buzzerActiveHigh_) {
+            digitalWrite(kBuzzerPin, on ? HIGH : LOW);
+        } else {
+            digitalWrite(kBuzzerPin, on ? LOW : HIGH);
+        }
+    }
+
+    void beepAlert_(unsigned now) {
+        if (now - lastBeepToggleMs_ >= 150) {
+            lastBeepToggleMs_ = now;
+            setBuzzer_(!buzzerState_);
+        }
+    }
+
     void handleLost_(unsigned now) {
         const unsigned lostFor = now - lastSeenMs_;
 
-        // 丢线后继续搜索 2 秒
         if (lostFor <= static_cast<unsigned>(p_.lostSearchMs)) {
             if (lastBias_ >= 0) {
-                // 最近偏右或未知：向右搜
-                drive_(p_.pivotSpeed, std::max(p_.pivotSpeed - 10, 0));
+                drive_(p_.pivotSpeed, std::max(p_.pivotSpeed - 8, 0));
             } else {
-                // 最近偏左：向左搜
-                drive_(std::max(p_.pivotSpeed - 10, 0), p_.pivotSpeed);
+                drive_(std::max(p_.pivotSpeed - 8, 0), p_.pivotSpeed);
             }
             return;
         }
 
-        // 超过 2 秒仍找不到线：自动停止
         driver_.stopAll();
     }
 
@@ -360,7 +445,7 @@ private:
         leftSpeed = std::clamp(leftSpeed, 0, 100);
         rightSpeed = std::clamp(rightSpeed, 0, 100);
 
-        // 这里按你当前硬件修正为 false，避免小车后退
+        // 你的车当前接线下，false 才是前进
         driver_.setLeft(leftSpeed, false);
         driver_.setRight(rightSpeed, false);
     }
@@ -369,9 +454,8 @@ private:
 // ============================== main ==============================
 int main() {
     try {
-        // 电机：
-        // 左：BCM 18/27/22 -> wPi 1/2/3
-        // 右：BCM 23/24/25 -> wPi 4/5/6
+        // 电机：BCM 18/27/22 -> wPi 1/2/3
+        //      BCM 23/24/25 -> wPi 4/5/6
         WiringPiMotorDriver::Pins motorPins = {
             1, 2, 3,
             4, 5, 6
@@ -379,13 +463,13 @@ int main() {
 
         WiringPiMotorDriver motor(motorPins);
 
-        // 木质地板循白线：
-        // 默认按“白线 DO = LOW”处理
-        // 若实测白线时 DO = HIGH，请改成 false
-        LineFollowerDO3 follower(motor, true);
+        // 当前默认按“白线 DO = HIGH”处理，所以用 false
+        // 若你实测白线时 DO = LOW，请改成 true
+        LineFollowerDO3 follower(motor, false);
         follower.begin();
 
-        std::cout << "White line follower started. Lost line will search for 2 seconds, then stop.\n";
+        std::cout << "White line follower + IR obstacle avoidance started." << std::endl;
+        std::cout << "Debug output enabled. Lost line: search 3 seconds, then stop." << std::endl;
 
         while (true) {
             follower.update();
