@@ -1,3 +1,10 @@
+/**
+ * @file track.cpp
+ * @brief Event-driven line follower and obstacle avoidance robot using libgpiod v2.
+ * * Features a Proportional (P) controller and Weighted Average position estimator.
+ * * Configured for following a BLACK LINE on a reflective/light floor.
+ */
+
 #include <gpiod.hpp>
 
 #include <algorithm>
@@ -11,12 +18,16 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
 
+// Global exit flag for graceful thread shutdown
+std::atomic<bool> g_quit{false};
+
 // ============================================================================
-// 1. Motor Driver Interface and Implementation
+// Motor Driver Interface and Implementation
 // ============================================================================
 
 class IMotorDriver {
@@ -70,15 +81,17 @@ public:
     void stopAll() override {
         dutyLeft_ = 0;
         dutyRight_ = 0;
-        request_.set_value(pins_.leftIn1, gpiod::line::value::INACTIVE);
-        request_.set_value(pins_.leftIn2, gpiod::line::value::INACTIVE);
-        request_.set_value(pins_.rightIn1, gpiod::line::value::INACTIVE);
-        request_.set_value(pins_.rightIn2, gpiod::line::value::INACTIVE);
-        request_.set_value(pins_.leftPwm, gpiod::line::value::INACTIVE);
-        request_.set_value(pins_.rightPwm, gpiod::line::value::INACTIVE);
+        if (!request_) return;
+        request_->set_value(pins_.leftIn1, gpiod::line::value::INACTIVE);
+        request_->set_value(pins_.leftIn2, gpiod::line::value::INACTIVE);
+        request_->set_value(pins_.rightIn1, gpiod::line::value::INACTIVE);
+        request_->set_value(pins_.rightIn2, gpiod::line::value::INACTIVE);
+        request_->set_value(pins_.leftPwm, gpiod::line::value::INACTIVE);
+        request_->set_value(pins_.rightPwm, gpiod::line::value::INACTIVE);
     }
 
     void tickPwm(int tickUs) {
+        if (!request_) return;
         phaseUs_ += tickUs;
         if (phaseUs_ >= pwmPeriodUs_) {
             phaseUs_ %= pwmPeriodUs_;
@@ -87,12 +100,12 @@ public:
         const int thresholdLeft = dutyLeft_ * pwmPeriodUs_ / 100;
         const int thresholdRight = dutyRight_ * pwmPeriodUs_ / 100;
 
-        request_.set_value(
+        request_->set_value(
             pins_.leftPwm,
             phaseUs_ < thresholdLeft ? gpiod::line::value::ACTIVE
                                      : gpiod::line::value::INACTIVE);
 
-        request_.set_value(
+        request_->set_value(
             pins_.rightPwm,
             phaseUs_ < thresholdRight ? gpiod::line::value::ACTIVE
                                       : gpiod::line::value::INACTIVE);
@@ -105,7 +118,7 @@ private:
     int dutyLeft_;
     int dutyRight_;
     int phaseUs_;
-    gpiod::line_request request_;
+    std::optional<gpiod::line_request> request_;
 
     static int clamp_(int v) {
         return v < 0 ? 0 : (v > 100 ? 100 : v);
@@ -117,29 +130,30 @@ private:
            .set_output_value(gpiod::line::value::INACTIVE);
 
         auto builder = chip_.prepare_request();
-        builder.set_consumer("line-follow-car")
+        builder.set_consumer("motor-driver")
                .add_line_settings(
-                   {pins_.leftPwm, pins_.leftIn1, pins_.leftIn2,
-                    pins_.rightPwm, pins_.rightIn1, pins_.rightIn2},
+                   gpiod::line::offsets{pins_.leftPwm, pins_.leftIn1, pins_.leftIn2,
+                                        pins_.rightPwm, pins_.rightIn1, pins_.rightIn2},
                    out);
 
         request_ = builder.do_request();
     }
 
     void setDirection_(bool left, bool forward) {
+        if (!request_) return;
         const auto active = gpiod::line::value::ACTIVE;
         const auto inactive = gpiod::line::value::INACTIVE;
 
         const unsigned in1 = left ? pins_.leftIn1 : pins_.rightIn1;
         const unsigned in2 = left ? pins_.leftIn2 : pins_.rightIn2;
 
-        request_.set_value(in1, forward ? active : inactive);
-        request_.set_value(in2, forward ? inactive : active);
+        request_->set_value(in1, forward ? active : inactive);
+        request_->set_value(in2, forward ? inactive : active);
     }
 };
 
 // ============================================================================
-// 2. Line Follower Definitions
+// Line Follower Core Logic
 // ============================================================================
 
 struct LineState {
@@ -172,15 +186,17 @@ public:
 
         unsigned buzzer = 17;
 
-        bool whiteLineActiveHigh = true;
+        // Logical polarity flags
+        bool lineActiveHigh = true;   // TRUE = Black line generates High(1)
         bool obstacleActiveLow = true;
         bool buzzerActiveHigh = true;
 
-        int baseSpeed = 22;
-        int softDelta = 5;
-        int hardDelta = 12;
+        // Motion & Control Parameters
+        int baseSpeed = 35; // Recommended higher speed for overcoming static friction
+        int kp = 20;        // Proportional gain for steering correction
 
-        std::chrono::microseconds debounce{3000};
+        // Hardware filtering
+        std::chrono::microseconds debounce{5000}; 
         std::chrono::microseconds pwmTick{500};
     };
 
@@ -194,14 +210,24 @@ public:
     void setObstacleCallback(ObstacleCallback cb);
     void setStopCallback(StopCallback cb);
 
+    LineState getCurrentLineState() {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        return lineState_;
+    }
+
+    ObstacleState getCurrentObstacleState() {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        return obstacleState_;
+    }
+
 private:
     IMotorDriver& motor_;
     Config cfg_;
 
     gpiod::chip chip_;
-    gpiod::line_request lineReq_;
-    gpiod::line_request obstacleReq_;
-    gpiod::line_request buzzerReq_;
+    std::optional<gpiod::line_request> lineReq_;
+    std::optional<gpiod::line_request> obstacleReq_;
+    std::optional<gpiod::line_request> buzzerReq_;
 
     std::thread lineThread_;
     std::thread obstacleThread_;
@@ -215,7 +241,6 @@ private:
     std::mutex stateMutex_;
     LineState lineState_{};
     ObstacleState obstacleState_{};
-    int lastBias_ = 0;
 
     LineCallback lineCb_;
     ObstacleCallback obstacleCb_;
@@ -243,7 +268,7 @@ private:
 };
 
 // ============================================================================
-// 3. Line Follower Implementation
+// Controller Implementation
 // ============================================================================
 
 static gpiod::line_settings make_input_settings(bool activeLow,
@@ -265,13 +290,10 @@ LineFollowerGpiod::LineFollowerGpiod(IMotorDriver& motor, Config cfg)
     refreshObstacleState_();
 }
 
-LineFollowerGpiod::~LineFollowerGpiod() {
-    stop();
-}
+LineFollowerGpiod::~LineFollowerGpiod() { stop(); }
 
 void LineFollowerGpiod::start() {
     if (running_.exchange(true)) return;
-
     lineThread_ = std::thread(&LineFollowerGpiod::lineLoop_, this);
     obstacleThread_ = std::thread(&LineFollowerGpiod::obstacleLoop_, this);
     pwmThread_ = std::thread(&LineFollowerGpiod::pwmLoop_, this);
@@ -281,15 +303,17 @@ void LineFollowerGpiod::start() {
 void LineFollowerGpiod::stop() {
     if (!running_.exchange(false)) return;
 
-    try { lineReq_.release(); } catch (...) {}
-    try { obstacleReq_.release(); } catch (...) {}
-    try { buzzerReq_.release(); } catch (...) {}
+    motor_.stopAll();
+
+    try { if (lineReq_) lineReq_->release(); } catch (...) {}
+    try { if (obstacleReq_) obstacleReq_->release(); } catch (...) {}
+    try { if (buzzerReq_) buzzerReq_->release(); } catch (...) {}
 
     if (lineThread_.joinable()) lineThread_.join();
     if (obstacleThread_.joinable()) obstacleThread_.join();
     if (pwmThread_.joinable()) pwmThread_.join();
     if (buzzerThread_.joinable()) buzzerThread_.join();
-
+    
     hardStop_();
 }
 
@@ -303,13 +327,14 @@ void LineFollowerGpiod::requestInputs_() {
 
     auto lineBuilder = chip_.prepare_request();
     lineBuilder.set_consumer("line-sensors")
-               .add_line_settings({cfg_.lineLeft, cfg_.lineCenter, cfg_.lineRight},
+               .add_line_settings(gpiod::line::offsets{cfg_.lineLeft, cfg_.lineCenter, cfg_.lineRight},
                                   lineSettings);
     lineReq_ = lineBuilder.do_request();
 
     auto obsBuilder = chip_.prepare_request();
     obsBuilder.set_consumer("obstacle-sensors")
-              .add_line_settings({cfg_.obstacleLeft, cfg_.obstacleRight}, obsSettings);
+              .add_line_settings(gpiod::line::offsets{cfg_.obstacleLeft, cfg_.obstacleRight}, 
+                                 obsSettings);
     obstacleReq_ = obsBuilder.do_request();
 }
 
@@ -320,14 +345,13 @@ void LineFollowerGpiod::requestBuzzer_() {
 
     auto builder = chip_.prepare_request();
     builder.set_consumer("buzzer")
-           .add_line_settings({cfg_.buzzer}, out);
-
+           .add_line_settings(cfg_.buzzer, out); 
     buzzerReq_ = builder.do_request();
 }
 
 bool LineFollowerGpiod::lineOn_(gpiod::line::value v) const {
     const bool active = (v == gpiod::line::value::ACTIVE);
-    return cfg_.whiteLineActiveHigh ? active : !active;
+    return cfg_.lineActiveHigh ? active : !active;
 }
 
 bool LineFollowerGpiod::obstacleOn_(gpiod::line::value v) const {
@@ -336,7 +360,8 @@ bool LineFollowerGpiod::obstacleOn_(gpiod::line::value v) const {
 }
 
 void LineFollowerGpiod::refreshLineState_() {
-    auto values = lineReq_.get_values({cfg_.lineLeft, cfg_.lineCenter, cfg_.lineRight});
+    if (!lineReq_) return;
+    auto values = lineReq_->get_values(gpiod::line::offsets{cfg_.lineLeft, cfg_.lineCenter, cfg_.lineRight});
     std::lock_guard<std::mutex> lock(stateMutex_);
     lineState_.left = lineOn_(values[0]);
     lineState_.center = lineOn_(values[1]);
@@ -344,7 +369,8 @@ void LineFollowerGpiod::refreshLineState_() {
 }
 
 void LineFollowerGpiod::refreshObstacleState_() {
-    auto values = obstacleReq_.get_values({cfg_.obstacleLeft, cfg_.obstacleRight});
+    if (!obstacleReq_) return;
+    auto values = obstacleReq_->get_values(gpiod::line::offsets{cfg_.obstacleLeft, cfg_.obstacleRight});
     std::lock_guard<std::mutex> lock(stateMutex_);
     obstacleState_.left = obstacleOn_(values[0]);
     obstacleState_.right = obstacleOn_(values[1]);
@@ -355,11 +381,15 @@ void LineFollowerGpiod::lineLoop_() {
     gpiod::edge_event_buffer buffer(16);
     while (running_.load()) {
         try {
-            const bool ready = lineReq_.wait_edge_events(std::chrono::nanoseconds{-1});
+            if (!lineReq_) break;
+            
+            // Timeout limits blocking wait to prevent deadlock on shutdown
+            const bool ready = lineReq_->wait_edge_events(std::chrono::milliseconds(200));
+            
             if (!running_.load()) break;
-            if (!ready) continue;
+            if (!ready) continue; 
 
-            (void)lineReq_.read_edge_events(buffer);
+            (void)lineReq_->read_edge_events(buffer);
             refreshLineState_();
             handleLineControl_();
 
@@ -367,9 +397,7 @@ void LineFollowerGpiod::lineLoop_() {
                 std::lock_guard<std::mutex> lock(stateMutex_);
                 lineCb_(lineState_);
             }
-        } catch (...) {
-            break;
-        }
+        } catch (...) { break; }
     }
 }
 
@@ -377,11 +405,13 @@ void LineFollowerGpiod::obstacleLoop_() {
     gpiod::edge_event_buffer buffer(8);
     while (running_.load()) {
         try {
-            const bool ready = obstacleReq_.wait_edge_events(std::chrono::nanoseconds{-1});
+            if (!obstacleReq_) break;
+            const bool ready = obstacleReq_->wait_edge_events(std::chrono::milliseconds(200));
+            
             if (!running_.load()) break;
             if (!ready) continue;
 
-            (void)obstacleReq_.read_edge_events(buffer);
+            (void)obstacleReq_->read_edge_events(buffer);
             refreshObstacleState_();
             handleObstacleControl_();
 
@@ -389,9 +419,7 @@ void LineFollowerGpiod::obstacleLoop_() {
                 std::lock_guard<std::mutex> lock(stateMutex_);
                 obstacleCb_(obstacleState_);
             }
-        } catch (...) {
-            break;
-        }
+        } catch (...) { break; }
     }
 }
 
@@ -401,7 +429,6 @@ void LineFollowerGpiod::pwmLoop_() {
         while (running_.load()) std::this_thread::sleep_for(cfg_.pwmTick);
         return;
     }
-
     while (running_.load()) {
         pwm->tickPwm(static_cast<int>(cfg_.pwmTick.count()));
         std::this_thread::sleep_for(cfg_.pwmTick);
@@ -416,7 +443,6 @@ void LineFollowerGpiod::buzzerLoop_() {
             std::this_thread::sleep_for(std::chrono::milliseconds(30));
             continue;
         }
-
         state = !state;
         setBuzzer_(state);
         std::this_thread::sleep_for(std::chrono::milliseconds(150));
@@ -425,10 +451,11 @@ void LineFollowerGpiod::buzzerLoop_() {
 }
 
 void LineFollowerGpiod::setBuzzer_(bool on) {
+    if (!buzzerReq_) return;
     const bool physicalOn = cfg_.buzzerActiveHigh ? on : !on;
-    buzzerReq_.set_value(cfg_.buzzer,
-                         physicalOn ? gpiod::line::value::ACTIVE
-                                    : gpiod::line::value::INACTIVE);
+    buzzerReq_->set_value(cfg_.buzzer,
+                          physicalOn ? gpiod::line::value::ACTIVE
+                                     : gpiod::line::value::INACTIVE);
 }
 
 void LineFollowerGpiod::hardStop_() {
@@ -457,41 +484,45 @@ void LineFollowerGpiod::handleLineControl_() {
 
     const int code = (s.left ? 4 : 0) | (s.center ? 2 : 0) | (s.right ? 1 : 0);
 
-    if (code != 0) {
-        if (code == 0b100 || code == 0b110) lastBias_ = -1;
-        if (code == 0b001 || code == 0b011) lastBias_ = +1;
+    // 000 indicates floor (no black line detected). Hard stop required.
+    if (code == 0b000) {
+        hardStop_();
+        return; 
     }
 
-    int left = cfg_.baseSpeed;
-    int right = cfg_.baseSpeed;
+    // Reject sensor glitch (left and right on line, center off)
+    if (code == 0b101) return; 
 
-    switch (code) {
-        case 0b010: break;
-        case 0b110: left -= cfg_.softDelta; right += cfg_.softDelta; break;
-        case 0b011: left += cfg_.softDelta; right -= cfg_.softDelta; break;
-        case 0b100: left -= cfg_.hardDelta; right += cfg_.hardDelta; break;
-        case 0b001: left += cfg_.hardDelta; right -= cfg_.hardDelta; break;
-        case 0b101: 
-            if (lastBias_ < 0) { left -= cfg_.softDelta; right += cfg_.softDelta; }
-            else if (lastBias_ > 0) { left += cfg_.softDelta; right -= cfg_.softDelta; }
-            break;
-        case 0b111: left = cfg_.baseSpeed / 2; right = cfg_.baseSpeed / 2; break;
-        case 0b000: 
-            // 只要三个传感器都没检测到线，立刻切断动力并停止逻辑
-            hardStop_();
-            return; 
-        default: break;
+    int activeSensors = 0;
+    int positionSum = 0;
+
+    if (s.left)   { activeSensors++; positionSum -= 10; }
+    if (s.center) { activeSensors++; positionSum += 0;  }
+    if (s.right)  { activeSensors++; positionSum += 10; }
+
+    int currentPosition = positionSum / activeSensors;
+    int turnCorrection = (currentPosition * cfg_.kp) / 10;
+
+    int leftSpeed = cfg_.baseSpeed + turnCorrection;
+    int rightSpeed = cfg_.baseSpeed - turnCorrection;
+
+    // 111 indicates a cross intersection
+    if (code == 0b111) {
+        // Deadband compensation to ensure motor breaks static friction
+        const int MIN_START_SPEED = 20; 
+        leftSpeed = std::max(cfg_.baseSpeed / 2, MIN_START_SPEED);
+        rightSpeed = std::max(cfg_.baseSpeed / 2, MIN_START_SPEED);
     }
 
-    left = std::clamp(left, 0, 100);
-    right = std::clamp(right, 0, 100);
+    leftSpeed = std::clamp(leftSpeed, 0, 100);
+    rightSpeed = std::clamp(rightSpeed, 0, 100);
 
-    motor_.setLeft(left, false);
-    motor_.setRight(right, false);
+    motor_.setLeft(leftSpeed, false);
+    motor_.setRight(rightSpeed, false);
 }
 
 // ============================================================================
-// 4. Main Entry Point
+// Application Entry Point
 // ============================================================================
 
 namespace {
@@ -499,9 +530,7 @@ std::unique_ptr<LineFollowerGpiod> g_controller;
 std::unique_ptr<MotorDriverGpiod> g_motor;
 
 void onSignal(int) {
-    if (g_controller) g_controller->stop();
-    if (g_motor) g_motor->stopAll();
-    std::_Exit(0);
+    g_quit.store(true);
 }
 }
 
@@ -530,37 +559,47 @@ int main() {
         cfg.obstacleRight = 12;
         cfg.buzzer = 17;
 
-        cfg.whiteLineActiveHigh = true;   
+        // BLACK LINE LOGIC: Black absorbs IR -> output HIGH (1)
+        cfg.lineActiveHigh = true;   
         cfg.obstacleActiveLow = true;     
         cfg.buzzerActiveHigh = true;      
 
+        // Since you previously mentioned motors struggled at low PWM,
+        // let's increase base speed significantly.
+        cfg.baseSpeed = 35; 
+        cfg.kp = 20;        
+        cfg.debounce = std::chrono::microseconds(5000); 
+
         g_controller = std::make_unique<LineFollowerGpiod>(*g_motor, cfg);
 
-        g_controller->setLineCallback([](const LineState& s) {
-            std::cout << "LINE  L=" << s.left
-                      << " C=" << s.center
-                      << " R=" << s.right << '\n';
-        });
-
-        g_controller->setObstacleCallback([](const ObstacleState& s) {
-            std::cout << "OBS   L=" << s.left
-                      << " R=" << s.right
-                      << " any=" << s.any() << '\n';
-        });
-
-        g_controller->setStopCallback([]() {
-            std::cout << "STOP issued\n";
-        });
+        g_controller->setLineCallback([](const LineState& s) {});
+        g_controller->setObstacleCallback([](const ObstacleState& s) {});
+        g_controller->setStopCallback([]() {});
 
         g_controller->start();
 
-        std::cout << "libgpiod v2 line follower started. Ctrl+C to exit.\n";
-
-        while (true) {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << "libgpiod v2 Black Line Follower Active. Press Ctrl+C to terminate.\n";
+        
+        while (!g_quit.load()) {
+            auto l = g_controller->getCurrentLineState();
+            auto o = g_controller->getCurrentObstacleState();
+            
+            std::cout << "[DEBUG] Black Line(L C R): " << l.left << " " << l.center << " " << l.right 
+                      << " | Obstacle: " << o.any() << '\n';
+                      
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
         }
+
+        std::cout << "\n[SYSTEM] Received Stop Signal. Shutting down gracefully...\n";
+        
+        if (g_controller) g_controller->stop();
+        if (g_motor) g_motor->stopAll();
+        
+        std::cout << "[SYSTEM] Shutdown complete. Goodbye!\n";
+        
+        return 0; 
     } catch (const std::exception& e) {
-        std::cerr << "Fatal: " << e.what() << '\n';
+        std::cerr << "Fatal Error: " << e.what() << '\n';
         return 1;
     }
 }
