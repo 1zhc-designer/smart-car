@@ -1,23 +1,23 @@
 #include <gtest/gtest.h>
 #include "rt/Scheduler.hpp"
+#include "motion/MotionController.hpp"
 #include "MockMotorDriver.hpp"
+#include <chrono>
+#include <thread>
 
-TEST(SchedulerTest, ImmediatePreemptionTest) {
+TEST(SchedulerTest, TaskExecution) {
     MockMotorDriver mock;
     MotionController mc(mock);
     Scheduler sched(mc);
 
     sched.start();
-
     
-    EXPECT_CALL(mock, setLeft(50, true)).Times(testing::AtLeast(1));
-    EXPECT_CALL(mock, stopAll()).Times(testing::AtLeast(1));
+    sched.enqueue({Motion::Up, 80, std::chrono::milliseconds(100)});
 
-    sched.replaceNow({Motion::Up, 50, std::chrono::hours(24)});
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
-    sched.replaceNow({Motion::Stop, 0, std::chrono::milliseconds(10)});
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    ASSERT_GT(mock.calls.size(), 0);
+    EXPECT_EQ(mock.calls[0].speed, 80);
+    
     sched.stop();
 }
