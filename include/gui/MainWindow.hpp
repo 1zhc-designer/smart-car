@@ -1,13 +1,16 @@
 #pragma once
 
-#include <QMainWindow>
 #include <QLabel>
+#include <QMainWindow>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTimer>
 
 #include "gui/SystemFacade.hpp"
 
+/**
+ * @brief Qt GUI for the smart car demo.
+ */
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
@@ -25,7 +28,6 @@ private:
     void updateCameraView();
     void updateTemperatureView();
 
-private:
     SystemFacade system_;
 
     QLabel* cameraLabel_{nullptr};
