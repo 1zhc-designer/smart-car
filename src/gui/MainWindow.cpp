@@ -14,23 +14,19 @@ QImage matToQImage(const cv::Mat& mat) {
     if (mat.empty()) {
         return {};
     }
-
     if (mat.type() == CV_8UC3) {
         cv::Mat rgb;
         cv::cvtColor(mat, rgb, cv::COLOR_BGR2RGB);
         return QImage(rgb.data, rgb.cols, rgb.rows, static_cast<int>(rgb.step), QImage::Format_RGB888).copy();
     }
-
     if (mat.type() == CV_8UC1) {
         return QImage(mat.data, mat.cols, mat.rows, static_cast<int>(mat.step), QImage::Format_Grayscale8).copy();
     }
-
     return {};
 }
-}
+} // namespace
 
-MainWindow::MainWindow(QWidget* parent)
-    : QMainWindow(parent) {
+MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setupUi();
     connectSignals();
     system_.start();
@@ -55,7 +51,6 @@ void MainWindow::setupUi() {
 
     auto* central = new QWidget(this);
     setCentralWidget(central);
-
     auto* mainLayout = new QVBoxLayout(central);
 
     auto* cameraGroup = new QGroupBox("Camera View", this);
@@ -69,7 +64,6 @@ void MainWindow::setupUi() {
 
     auto* motionGroup = new QGroupBox("Movement Control", this);
     auto* motionLayout = new QVBoxLayout(motionGroup);
-
     auto* motionTop = new QHBoxLayout();
     forwardBtn_ = new QPushButton("Forward", this);
     motionTop->addStretch();
@@ -125,7 +119,6 @@ void MainWindow::setupUi() {
 
     auto* tempGroup = new QGroupBox("Temperature Monitor", this);
     auto* tempLayout = new QVBoxLayout(tempGroup);
-
     currentTempLabel_ = new QLabel("Current Temperature: --", this);
     currentStatusLabel_ = new QLabel("Status: --", this);
 
@@ -133,7 +126,6 @@ void MainWindow::setupUi() {
     lowLimitSpin_ = new QSpinBox(this);
     highLimitSpin_ = new QSpinBox(this);
     applyLimitsBtn_ = new QPushButton("Apply", this);
-
     lowLimitSpin_->setRange(-20, 120);
     highLimitSpin_->setRange(-20, 120);
 
@@ -157,13 +149,11 @@ void MainWindow::connectSignals() {
     connect(leftBtn_, &QPushButton::clicked, this, [this]() { system_.turnLeft(); });
     connect(rightBtn_, &QPushButton::clicked, this, [this]() { system_.turnRight(); });
     connect(stopBtn_, &QPushButton::clicked, this, [this]() { system_.stopMotion(); });
-
     connect(gimbalUpBtn_, &QPushButton::clicked, this, [this]() { system_.gimbalUp(); });
     connect(gimbalDownBtn_, &QPushButton::clicked, this, [this]() { system_.gimbalDown(); });
     connect(gimbalLeftBtn_, &QPushButton::clicked, this, [this]() { system_.gimbalLeft(); });
     connect(gimbalRightBtn_, &QPushButton::clicked, this, [this]() { system_.gimbalRight(); });
     connect(gimbalResetBtn_, &QPushButton::clicked, this, [this]() { system_.gimbalReset(); });
-
     connect(applyLimitsBtn_, &QPushButton::clicked, this, &MainWindow::applyTemperatureLimits);
 }
 
@@ -183,22 +173,15 @@ void MainWindow::applyTemperatureLimits() {
 void MainWindow::updateCameraView() {
     const cv::Mat frame = system_.latestFrame();
     const QImage image = matToQImage(frame);
-
     if (!image.isNull()) {
-        cameraLabel_->setPixmap(QPixmap::fromImage(image).scaled(
-            cameraLabel_->size(),
-            Qt::KeepAspectRatio,
-            Qt::SmoothTransformation));
+        cameraLabel_->setPixmap(QPixmap::fromImage(image).scaled(cameraLabel_->size(), Qt::KeepAspectRatio,
+                                                                 Qt::SmoothTransformation));
     }
 }
 
 void MainWindow::updateTemperatureView() {
-    currentTempLabel_->setText(
-        QString("Current Temperature: %1 °C").arg(system_.currentTemperature(), 0, 'f', 2));
-
-    currentStatusLabel_->setText(
-        QString("Status: %1").arg(QString::fromStdString(system_.currentStatus())));
-
+    currentTempLabel_->setText(QString("Current Temperature: %1 °C").arg(system_.currentTemperature(), 0, 'f', 2));
+    currentStatusLabel_->setText(QString("Status: %1").arg(QString::fromStdString(system_.currentStatus())));
     if (!lowLimitSpin_->hasFocus()) {
         lowLimitSpin_->setValue(system_.lowLimit());
     }

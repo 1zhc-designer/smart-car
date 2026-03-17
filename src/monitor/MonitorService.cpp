@@ -1,133 +1,70 @@
 #include "monitor/MonitorService.hpp"
 
-#include <wiringPi.h>
-#include <pcf8591.h>
-#include <math.h>
+#include <algorithm>
+#include <gpiod.h>
 
+#include <fcntl.h>
+#include <linux/i2c-dev.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
+#include <sys/ioctl.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
 
+#include <array>
 #include <cerrno>
-#include <cstring>
+#include <cmath>
 #include <cstdio>
-#include <mutex>
+#include <cstring>
 #include <stdexcept>
-#include <string>
-#include <thread>
 
 namespace {
-
-// smartcar uses wiringPiSetup() / wiringPi numbering.
-// BCM20 -> wPi 28
-// BCM21 -> wPi 29
-// BCM17 -> wPi 0
-static constexpr int LED_R  = 28;
-static constexpr int LED_G  = 29;
-static constexpr int BUZZER = 0;
-
-static constexpr int PCF_BASE = 120;
-
-// Keep the same PCF channel mapping as your original good monitor.cpp
-static constexpr int AIN_Y   = PCF_BASE + 0;
-static constexpr int AIN_X   = PCF_BASE + 1;
-static constexpr int AIN_SW  = PCF_BASE + 2;
-static constexpr int AIN_NTC = PCF_BASE + 3;
-
-using uchar = unsigned char;
+constexpr int kLedR = 20;
+constexpr int kLedG = 21;
+constexpr int kBuzzer = 17;
+constexpr int kPcf8591Address = 0x48;
+constexpr const char* kI2cDevice = "/dev/i2c-1";
+constexpr const char* kGpioChip = "/dev/gpiochip0";
 
 [[noreturn]] void throwSys(const char* what) {
     throw std::runtime_error(std::string(what) + ": " + std::strerror(errno));
 }
 
-void setTimerOnce(int timer_fd, int ms) {
+void closeFd(int& fd) {
+    if (fd >= 0) {
+        ::close(fd);
+        fd = -1;
+    }
+}
+
+void setTimerOnce(int timerFd, int ms) {
     itimerspec its{};
-    its.it_value.tv_sec  = ms / 1000;
+    its.it_value.tv_sec = ms / 1000;
     its.it_value.tv_nsec = (ms % 1000) * 1000'000L;
-    if (::timerfd_settime(timer_fd, 0, &its, nullptr) < 0) {
+    if (::timerfd_settime(timerFd, 0, &its, nullptr) < 0) {
         throwSys("timerfd_settime");
     }
 }
 
-void timerfdDrain(int timer_fd) {
-    uint64_t expirations;
-    while (::read(timer_fd, &expirations, sizeof(expirations)) == sizeof(expirations)) {}
+void drainTimerfd(int timerFd) {
+    uint64_t expirations = 0;
+    while (::read(timerFd, &expirations, sizeof(expirations)) == sizeof(expirations)) {
+    }
 }
 
-void eventfdDrain(int event_fd) {
-    uint64_t v;
+void drainEventfd(int eventFd) {
+    uint64_t value = 0;
     while (true) {
-        ssize_t r = ::read(event_fd, &v, sizeof(v));
-        if (r == static_cast<ssize_t>(sizeof(v))) continue;
-        if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) break;
+        const ssize_t r = ::read(eventFd, &value, sizeof(value));
+        if (r == static_cast<ssize_t>(sizeof(value))) {
+            continue;
+        }
+        if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            break;
+        }
         break;
     }
 }
-
-// Restore the original good-version buzzer logic: LOW active, direct digitalWrite
-inline void buzzerInit() {
-    pinMode(BUZZER, OUTPUT);
-    digitalWrite(BUZZER, HIGH);
-}
-
-inline void buzzerOn() {
-    digitalWrite(BUZZER, LOW);
-}
-
-inline void buzzerOff() {
-    digitalWrite(BUZZER, HIGH);
-}
-
-inline void ledInit() {
-    pinMode(LED_R, OUTPUT);
-    pinMode(LED_G, OUTPUT);
-}
-
-inline void setLED(int r_state, int g_state) {
-    digitalWrite(LED_R, r_state);
-    digitalWrite(LED_G, g_state);
-}
-
-inline uchar readJoystick() {
-    uchar js = 0;
-    uchar x  = static_cast<uchar>(analogRead(AIN_X));
-    uchar y  = static_cast<uchar>(analogRead(AIN_Y));
-    uchar sw = static_cast<uchar>(analogRead(AIN_SW));
-
-    if (x >= 250) js = 2;
-    if (x <= 5)   js = 1;
-    if (y >= 250) js = 4;
-    if (y <= 5)   js = 3;
-
-    if ((int)x - 127 < 30 && (int)x - 127 > -30 &&
-        (int)y - 127 < 30 && (int)y - 127 > -30 &&
-        sw > 127) {
-        js = 0;
-    }
-
-    return js;
-}
-
-inline double readNTC() {
-    const double Vref = 5.0;
-    const double R0   = 10000.0;
-    const double B    = 3950.0;
-    const double T0   = 298.15;
-    const double Rser = 10000.0;
-
-    unsigned char adc = static_cast<unsigned char>(analogRead(AIN_NTC));
-
-    double Vr = Vref * adc / 255.0;
-    if (Vr <= 0.000001) Vr = 0.000001;
-    if (Vr >= Vref - 0.000001) Vr = Vref - 0.000001;
-
-    double Rt = Rser * Vr / (Vref - Vr);
-    double Tk = 1.0 / ((std::log(Rt / R0) / B) + (1.0 / T0));
-
-    return Tk - 273.15;
-}
-
 } // namespace
 
 MonitorService::~MonitorService() {
@@ -160,12 +97,19 @@ void MonitorService::setLimits(int low, int high) {
     highLimit_.store(high);
 }
 
-void MonitorService::start() {
-    if (running_.load()) return;
+void MonitorService::setStatusCallback(StatusCallback cb) {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    statusCallback_ = std::move(cb);
+}
 
-    stopRequested_.store(false);
+void MonitorService::start() {
+    if (running_) {
+        return;
+    }
+
+    stopRequested_ = false;
     worker_ = std::thread([this]() {
-        running_.store(true);
+        running_ = true;
         try {
             runLoop();
         } catch (const std::exception& e) {
@@ -173,16 +117,16 @@ void MonitorService::start() {
         } catch (...) {
             std::fprintf(stderr, "[Monitor] Fatal: unknown exception\n");
         }
-        running_.store(false);
+        running_ = false;
     });
 }
 
 void MonitorService::stop() {
-    stopRequested_.store(true);
+    stopRequested_ = true;
 
     if (stopFd_ >= 0) {
         uint64_t one = 1;
-        ::write(stopFd_, &one, sizeof(one));
+        (void)::write(stopFd_, &one, sizeof(one));
     }
 
     if (worker_.joinable()) {
@@ -190,25 +134,151 @@ void MonitorService::stop() {
     }
 }
 
-void MonitorService::runLoop() {
-    if (wiringPiSetup() == -1) {
-        throw std::runtime_error("wiringPiSetup failed (monitor)");
+void MonitorService::ensureGpioReady() {
+    chip_ = gpiod_chip_open(kGpioChip);
+    if (!chip_) {
+        throw std::runtime_error("Failed to open gpiochip for monitor outputs");
     }
 
-    pcf8591Setup(PCF_BASE, 0x48);
+    gpiod_line_settings* settings = gpiod_line_settings_new();
+    gpiod_line_config* lineConfig = gpiod_line_config_new();
+    gpiod_request_config* requestConfig = gpiod_request_config_new();
+    if (!settings || !lineConfig || !requestConfig) {
+        gpiod_line_settings_free(settings);
+        gpiod_line_config_free(lineConfig);
+        gpiod_request_config_free(requestConfig);
+        throw std::runtime_error("Failed to allocate libgpiod monitor objects");
+    }
 
-    ledInit();
-    buzzerInit();
+    gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
+    gpiod_line_settings_set_output_value(settings, GPIOD_LINE_VALUE_INACTIVE);
 
-    std::printf("System running...\n");
-    std::printf("LED: High=RED, Low=YELLOW, Normal=GREEN\n");
-    std::printf("Joystick press disabled (no exit)\n");
+    const std::array<unsigned int, 3> offsets = {
+        static_cast<unsigned int>(kLedR),
+        static_cast<unsigned int>(kLedG),
+        static_cast<unsigned int>(kBuzzer)};
 
-    const int epoll_fd = ::epoll_create1(0);
-    if (epoll_fd < 0) throwSys("epoll_create1");
+    if (gpiod_line_config_add_line_settings(lineConfig, offsets.data(), offsets.size(), settings) < 0) {
+        gpiod_line_settings_free(settings);
+        gpiod_line_config_free(lineConfig);
+        gpiod_request_config_free(requestConfig);
+        throw std::runtime_error("Failed to configure monitor GPIO lines");
+    }
 
-    const int timer_fd = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-    if (timer_fd < 0) throwSys("timerfd_create");
+    gpiod_request_config_set_consumer(requestConfig, "smartcar-monitor");
+    gpioRequest_ = gpiod_chip_request_lines(chip_, requestConfig, lineConfig);
+
+    gpiod_line_settings_free(settings);
+    gpiod_line_config_free(lineConfig);
+    gpiod_request_config_free(requestConfig);
+
+    if (!gpioRequest_) {
+        throw std::runtime_error("Failed to request monitor GPIO lines");
+    }
+}
+
+void MonitorService::ensureI2cReady() {
+    i2cFd_ = ::open(kI2cDevice, O_RDWR);
+    if (i2cFd_ < 0) {
+        throw std::runtime_error("Failed to open /dev/i2c-1 for PCF8591");
+    }
+    if (::ioctl(i2cFd_, I2C_SLAVE, kPcf8591Address) < 0) {
+        throw std::runtime_error("Failed to select PCF8591 I2C address");
+    }
+}
+
+void MonitorService::closeResources() {
+    closeFd(timerFd_);
+    closeFd(stopFd_);
+    closeFd(epollFd_);
+    closeFd(i2cFd_);
+
+    if (gpioRequest_) {
+        gpiod_line_request_release(gpioRequest_);
+        gpioRequest_ = nullptr;
+    }
+    if (chip_) {
+        gpiod_chip_close(chip_);
+        chip_ = nullptr;
+    }
+}
+
+void MonitorService::writeGpioValue(int offset, bool active) {
+    gpiod_line_request_set_value(gpioRequest_, offset, active ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);
+}
+
+unsigned char MonitorService::readPcf8591Channel(int channel) {
+    const unsigned char control = static_cast<unsigned char>(0x40 | (channel & 0x03));
+    if (::write(i2cFd_, &control, 1) != 1) {
+        throw std::runtime_error("PCF8591 control write failed");
+    }
+
+    unsigned char discard = 0;
+    unsigned char value = 0;
+    if (::read(i2cFd_, &discard, 1) != 1) {
+        throw std::runtime_error("PCF8591 dummy read failed");
+    }
+    if (::read(i2cFd_, &value, 1) != 1) {
+        throw std::runtime_error("PCF8591 value read failed");
+    }
+    return value;
+}
+
+unsigned char MonitorService::readJoystick() {
+    const unsigned char y = readPcf8591Channel(0);
+    const unsigned char x = readPcf8591Channel(1);
+    const unsigned char sw = readPcf8591Channel(2);
+
+    unsigned char js = 0;
+    if (x >= 250) js = 2;
+    if (x <= 5) js = 1;
+    if (y >= 250) js = 4;
+    if (y <= 5) js = 3;
+
+    if (std::abs(static_cast<int>(x) - 127) < 30 && std::abs(static_cast<int>(y) - 127) < 30 && sw > 127) {
+        js = 0;
+    }
+    return js;
+}
+
+double MonitorService::readNtcTemperature() {
+    constexpr double Vref = 5.0;
+    constexpr double R0 = 10000.0;
+    constexpr double B = 3950.0;
+    constexpr double T0 = 298.15;
+    constexpr double Rser = 10000.0;
+
+    const unsigned char adc = readPcf8591Channel(3);
+    double vr = Vref * static_cast<double>(adc) / 255.0;
+    vr = std::clamp(vr, 0.000001, Vref - 0.000001);
+
+    const double rt = Rser * vr / (Vref - vr);
+    const double tk = 1.0 / ((std::log(rt / R0) / B) + (1.0 / T0));
+    return tk - 273.15;
+}
+
+void MonitorService::updateUiState(double temp, const std::string& status) {
+    StatusCallback cb;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        currentTemperature_ = temp;
+        currentStatus_ = status;
+        cb = statusCallback_;
+    }
+    if (cb) {
+        cb(temp, status);
+    }
+}
+
+void MonitorService::runLoop() {
+    ensureGpioReady();
+    ensureI2cReady();
+
+    epollFd_ = ::epoll_create1(0);
+    if (epollFd_ < 0) throwSys("epoll_create1");
+
+    timerFd_ = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+    if (timerFd_ < 0) throwSys("timerfd_create");
 
     stopFd_ = ::eventfd(0, EFD_NONBLOCK);
     if (stopFd_ < 0) throwSys("eventfd");
@@ -216,156 +286,129 @@ void MonitorService::runLoop() {
     {
         epoll_event ev{};
         ev.events = EPOLLIN;
-        ev.data.fd = timer_fd;
-        if (::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, timer_fd, &ev) < 0) {
-            throwSys("epoll_ctl(timer_fd)");
+        ev.data.fd = timerFd_;
+        if (::epoll_ctl(epollFd_, EPOLL_CTL_ADD, timerFd_, &ev) < 0) {
+            throwSys("epoll_ctl(timerFd)");
         }
     }
     {
         epoll_event ev{};
         ev.events = EPOLLIN;
         ev.data.fd = stopFd_;
-        if (::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stopFd_, &ev) < 0) {
-            throwSys("epoll_ctl(stop_fd)");
+        if (::epoll_ctl(epollFd_, EPOLL_CTL_ADD, stopFd_, &ev) < 0) {
+            throwSys("epoll_ctl(stopFd)");
         }
     }
 
     enum class Phase { Sample, BeepOn, BeepOff, Gap };
-
     Phase phase = Phase::Sample;
-    int beep_ms = 0;
-    int beeps_left = 0;
+    int beepMs = 0;
+    int beepsLeft = 0;
 
-    setTimerOnce(timer_fd, 1);
+    setTimerOnce(timerFd_, 1);
 
-    while (!stopRequested_.load()) {
+    while (!stopRequested_) {
         epoll_event events[4];
-        int n = ::epoll_wait(epoll_fd, events, 4, -1);
+        const int n = ::epoll_wait(epollFd_, events, 4, -1);
         if (n < 0) {
-            if (errno == EINTR) continue;
+            if (errno == EINTR) {
+                continue;
+            }
             break;
         }
 
         for (int i = 0; i < n; ++i) {
             const int fd = events[i].data.fd;
-
             if (fd == stopFd_) {
-                eventfdDrain(stopFd_);
+                drainEventfd(stopFd_);
+                continue;
+            }
+            if (fd != timerFd_) {
                 continue;
             }
 
-            if (fd != timer_fd) continue;
-            timerfdDrain(timer_fd);
-
-            if (stopRequested_.load()) break;
+            drainTimerfd(timerFd_);
+            if (stopRequested_) {
+                break;
+            }
 
             switch (phase) {
-                case Phase::Sample: {
-                    int low_limit = lowLimit_.load();
-                    int high_limit = highLimit_.load();
+            case Phase::Sample: {
+                int low = lowLimit_.load();
+                int high = highLimit_.load();
+                const unsigned char joy = readJoystick();
+                switch (joy) {
+                case 1: --low; break;
+                case 2: ++low; break;
+                case 3: ++high; break;
+                case 4: --high; break;
+                default: break;
+                }
+                if (low < high) {
+                    lowLimit_.store(low);
+                    highLimit_.store(high);
+                }
 
-                    while (true) {
-                        const uchar joy = readJoystick();
-                        switch (joy) {
-                            case 1: --low_limit;  break;
-                            case 2: ++low_limit;  break;
-                            case 3: ++high_limit; break;
-                            case 4: --high_limit; break;
-                            default: break;
-                        }
+                const double temp = readNtcTemperature();
+                if (temp < lowLimit_.load()) {
+                    writeGpioValue(kLedR, true);
+                    writeGpioValue(kLedG, false);
+                    beepsLeft = 3;
+                    beepMs = 400;
+                    updateUiState(temp, "Too Cold");
+                    writeGpioValue(kBuzzer, true);
+                    phase = Phase::BeepOn;
+                    setTimerOnce(timerFd_, beepMs);
+                } else if (temp >= highLimit_.load()) {
+                    writeGpioValue(kLedR, true);
+                    writeGpioValue(kLedG, true);
+                    beepsLeft = 3;
+                    beepMs = 80;
+                    updateUiState(temp, "Too Hot");
+                    writeGpioValue(kBuzzer, true);
+                    phase = Phase::BeepOn;
+                    setTimerOnce(timerFd_, beepMs);
+                } else {
+                    writeGpioValue(kLedR, false);
+                    writeGpioValue(kLedG, true);
+                    writeGpioValue(kBuzzer, false);
+                    updateUiState(temp, "Normal");
+                    phase = Phase::Gap;
+                    setTimerOnce(timerFd_, 200);
+                }
+            } break;
 
-                        if (low_limit >= high_limit) {
-                            low_limit = lowLimit_.load();
-                            high_limit = highLimit_.load();
-                            continue;
-                        }
-                        break;
-                    }
+            case Phase::BeepOn:
+                writeGpioValue(kBuzzer, false);
+                phase = Phase::BeepOff;
+                setTimerOnce(timerFd_, beepMs);
+                break;
 
-                    lowLimit_.store(low_limit);
-                    highLimit_.store(high_limit);
+            case Phase::BeepOff:
+                --beepsLeft;
+                if (beepsLeft > 0) {
+                    writeGpioValue(kBuzzer, true);
+                    phase = Phase::BeepOn;
+                    setTimerOnce(timerFd_, beepMs);
+                } else {
+                    writeGpioValue(kBuzzer, false);
+                    phase = Phase::Gap;
+                    setTimerOnce(timerFd_, 200);
+                }
+                break;
 
-                    const double temp = readNTC();
-
-                    {
-                        std::lock_guard<std::mutex> lock(stateMutex_);
-                        currentTemperature_ = temp;
-                    }
-
-                    if (temp < low_limit) {
-                        setLED(HIGH, HIGH);
-                        beeps_left = 3;
-                        beep_ms = 400;
-
-                        {
-                            std::lock_guard<std::mutex> lock(stateMutex_);
-                            currentStatus_ = "Too Cold";
-                        }
-
-                        buzzerOn();
-                        phase = Phase::BeepOn;
-                        setTimerOnce(timer_fd, beep_ms);
-                    } else if (temp >= high_limit) {
-                        setLED(HIGH, LOW);
-                        beeps_left = 3;
-                        beep_ms = 80;
-
-                        {
-                            std::lock_guard<std::mutex> lock(stateMutex_);
-                            currentStatus_ = "Too Hot";
-                        }
-
-                        buzzerOn();
-                        phase = Phase::BeepOn;
-                        setTimerOnce(timer_fd, beep_ms);
-                    } else {
-                        setLED(LOW, HIGH);
-                        buzzerOff();
-
-                        {
-                            std::lock_guard<std::mutex> lock(stateMutex_);
-                            currentStatus_ = "Normal";
-                        }
-
-                        phase = Phase::Gap;
-                        setTimerOnce(timer_fd, 200);
-                    }
-                } break;
-
-                case Phase::BeepOn: {
-                    buzzerOff();
-                    phase = Phase::BeepOff;
-                    setTimerOnce(timer_fd, beep_ms);
-                } break;
-
-                case Phase::BeepOff: {
-                    --beeps_left;
-                    if (beeps_left > 0) {
-                        buzzerOn();
-                        phase = Phase::BeepOn;
-                        setTimerOnce(timer_fd, beep_ms);
-                    } else {
-                        buzzerOff();
-                        phase = Phase::Gap;
-                        setTimerOnce(timer_fd, 200);
-                    }
-                } break;
-
-                case Phase::Gap: {
-                    phase = Phase::Sample;
-                    setTimerOnce(timer_fd, 1);
-                } break;
+            case Phase::Gap:
+                phase = Phase::Sample;
+                setTimerOnce(timerFd_, 1);
+                break;
             }
         }
     }
 
-    buzzerOff();
-    setLED(HIGH, HIGH);
-
-    if (timer_fd >= 0) ::close(timer_fd);
-    if (stopFd_ >= 0) {
-        ::close(stopFd_);
-        stopFd_ = -1;
+    if (gpioRequest_) {
+        writeGpioValue(kBuzzer, false);
+        writeGpioValue(kLedR, false);
+        writeGpioValue(kLedG, false);
     }
-    if (epoll_fd >= 0) ::close(epoll_fd);
+    closeResources();
 }
