@@ -9,7 +9,8 @@ set(CMAKE_AUTORCC ON)
 
 find_package(PkgConfig REQUIRED)
 find_package(OpenCV REQUIRED)
-find_package(Qt5 REQUIRED COMPONENTS Widgets)
+find_package(Qt5 REQUIRED COMPONENTS Widgets Test)
+find_package(GTest REQUIRED)
 
 pkg_check_modules(GPIOD REQUIRED libgpiod)
 pkg_check_modules(LIRC REQUIRED lirc)
@@ -30,11 +31,13 @@ add_library(car_logic STATIC
     src/monitor/MonitorService.cpp
     src/monitor/CameraService.cpp
     src/gimbal/GimbalService.cpp
+    src/ir/IrRemote.cpp
 )
 
 target_link_libraries(car_logic PRIVATE
     ${OpenCV_LIBS}
     ${GPIOD_LIBRARIES}
+    ${LIRC_LIBRARIES}
     ${GSTREAMER_LIBRARIES}
     ${GSTREAMER_VIDEO_LIBRARIES}
     pthread
@@ -42,12 +45,10 @@ target_link_libraries(car_logic PRIVATE
 
 add_executable(smartcar
     src/main.cpp
-    src/ir/IrRemote.cpp
 )
 
 target_link_libraries(smartcar PRIVATE
     car_logic
-    ${LIRC_LIBRARIES}
     ${OpenCV_LIBS}
     pthread
 )
@@ -66,3 +67,37 @@ target_link_libraries(smartcar_gui PRIVATE
     Qt5::Widgets
     pthread
 )
+
+enable_testing()
+
+add_executable(unit_tests
+    tests/MotionTest.cpp
+    tests/SchedulerTest.cpp
+    tests/GimbalTest.cpp
+    tests/MonitorTest.cpp
+    tests/CameraTest.cpp
+    tests/IrRemoteTest.cpp
+)
+
+target_link_libraries(unit_tests PRIVATE
+    car_logic
+    GTest::gtest_main
+    pthread
+)
+
+add_executable(gui_test
+    tests/GuiTest.cpp
+    src/gui/MainWindow.cpp
+    src/gui/SystemFacade.cpp
+    include/gui/MainWindow.hpp
+)
+
+target_link_libraries(gui_test PRIVATE
+    car_logic
+    Qt5::Widgets
+    Qt5::Test
+    pthread
+)
+
+add_test(NAME AllLogicTests COMMAND unit_tests)
+add_test(NAME GuiSystemTest COMMAND gui_test)
