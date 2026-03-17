@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-#include <memory>
 #include <string>
 
 #include <opencv2/opencv.hpp>
@@ -10,9 +9,12 @@
 #include "monitor/CameraService.hpp"
 #include "monitor/MonitorService.hpp"
 #include "motion/MotionController.hpp"
-#include "motor/WiringPiMotorDriver.hpp"
+#include "motor/GpiodMotorDriver.hpp"
 #include "rt/Scheduler.hpp"
 
+/**
+ * @brief High-level façade used by the GUI.
+ */
 class SystemFacade {
 public:
     SystemFacade();
@@ -50,8 +52,7 @@ private:
     static const std::chrono::milliseconds kContinuous;
     static const std::chrono::milliseconds kStopDur;
 
-private:
-    WiringPiMotorDriver driver_;
+    GpiodMotorDriver driver_;
     MotionController motion_;
     Scheduler sched_;
     MonitorService monitor_;
