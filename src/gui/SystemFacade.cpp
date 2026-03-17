@@ -6,7 +6,8 @@ const std::chrono::milliseconds SystemFacade::kContinuous =
 const std::chrono::milliseconds SystemFacade::kStopDur{10};
 
 SystemFacade::SystemFacade()
-    : driver_({.PWMA = 1, .AIN1 = 3, .AIN2 = 2, .PWMB = 4, .BIN1 = 6, .BIN2 = 5}, 100),
+    : driver_({.PWMA = 18, .AIN1 = 22, .AIN2 = 27,
+               .PWMB = 23, .BIN1 = 25, .BIN2 = 24}, 100),
       motion_(driver_),
       sched_(motion_),
       camera_(0, "./captures", false) {}
