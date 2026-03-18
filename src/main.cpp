@@ -1,4 +1,4 @@
-#include "motor/WiringPiMotorDriver.hpp"
+#include "motor/GpiodMotorDriver.hpp"
 #include "motion/MotionController.hpp"
 #include "rt/Scheduler.hpp"
 #include "ir/IrRemote.hpp"
@@ -8,14 +8,18 @@
 
 #include <iostream>
 
+/**
+ * @brief Command-line entry point for the smart car.
+ * @return 0 on success, non-zero on failure.
+ */
 int main() {
     try {
-        WiringPiMotorDriver::Pins pins{
-            .PWMA = 1, .AIN1 = 3, .AIN2 = 2,
-            .PWMB = 4, .BIN1 = 6, .BIN2 = 5
+        GpiodMotorDriver::Pins pins{
+            .PWMA = 18, .AIN1 = 22, .AIN2 = 27,
+            .PWMB = 23, .BIN1 = 25, .BIN2 = 24
         };
 
-        WiringPiMotorDriver driver(pins, 100);
+        GpiodMotorDriver driver(pins, 100);
         MotionController motion(driver);
         Scheduler sched(motion);
 

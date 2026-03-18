@@ -1,4 +1,5 @@
 #pragma once
+
 #include "motion/MotionController.hpp"
 
 #include <array>
@@ -9,12 +10,21 @@
 #include <mutex>
 #include <thread>
 
+/**
+ * @brief A single motion task to be executed by the scheduler.
+ */
 struct MotionTask {
     Motion motion;
-    int speed; // 0..100
+    int speed;
     std::chrono::milliseconds duration;
 };
 
+/**
+ * @brief Real-time motion scheduler using blocking Linux I/O primitives.
+ *
+ * A worker thread blocks in epoll_wait(). New commands wake the worker via
+ * eventfd, while task expiration is handled by timerfd.
+ */
 class Scheduler {
 public:
     explicit Scheduler(MotionController& mc);
@@ -22,15 +32,8 @@ public:
 
     void start();
     void stop();
-
-    // Push a task and wake the worker thread.
     void enqueue(const MotionTask& task);
-
-    // Clear queued tasks (does not automatically stop a currently active task).
     void clear();
-
-    // Replace any queued tasks with a single task and request immediate preemption.
-    // This is the key API to support "press new command -> execute immediately".
     void replaceNow(const MotionTask& task);
 
 private:
@@ -39,27 +42,26 @@ private:
 
     struct QueuedTask {
         MotionTask task;
-        TimePoint enqueue_ts;
+        TimePoint enqueueTs;
     };
 
-    // Fixed-size latency stats (microseconds) to avoid unbounded memory growth.
     static constexpr std::size_t kLatencyBufSize = 4096;
 
     struct LatencyStats {
-        std::array<uint64_t, kLatencyBufSize> samples_us{};
-        std::size_t write_idx{0};
-        std::size_t count{0};       // total samples seen (can exceed buf size)
-        uint64_t min_us{UINT64_MAX};
-        uint64_t max_us{0};
-        long double sum_us{0.0L};
+        std::array<uint64_t, kLatencyBufSize> samplesUs{};
+        std::size_t writeIdx{0};
+        std::size_t count{0};
+        uint64_t minUs{UINT64_MAX};
+        uint64_t maxUs{0};
+        long double sumUs{0.0L};
 
         void add(uint64_t us);
         void snapshot(std::array<uint64_t, kLatencyBufSize>& out,
                       std::size_t& valid,
-                      std::size_t& total_count,
-                      uint64_t& min_out,
-                      uint64_t& max_out,
-                      long double& sum_out) const;
+                      std::size_t& totalCount,
+                      uint64_t& minOut,
+                      uint64_t& maxOut,
+                      long double& sumOut) const;
     };
 
     void workerLoop();
@@ -69,20 +71,17 @@ private:
 
     MotionController& mc_;
     std::thread worker_;
-    std::mutex mtx_;
-    std::deque<QueuedTask> q_;
+    std::mutex mutex_;
+    std::deque<QueuedTask> queue_;
     std::atomic<bool> running_{false};
 
-    // Linux event/timer based wake-ups
-    int epoll_fd_{-1};
-    int timer_fd_{-1};
-    int event_fd_{-1};
+    int epollFd_{-1};
+    int timerFd_{-1};
+    int eventFd_{-1};
 
-    // Worker state
-    bool task_active_{false};
+    bool taskActive_{false};
     MotionTask current_{};
 
-    // Latency stats
-    mutable std::mutex stats_mtx_;
+    mutable std::mutex statsMutex_;
     LatencyStats latency_;
 };
