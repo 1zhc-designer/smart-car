@@ -17,11 +17,14 @@
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 namespace {
 constexpr int kLedR = 20;
 constexpr int kLedG = 21;
 constexpr int kBuzzer = 17;
+
 constexpr int kPcf8591Address = 0x48;
 constexpr const char* kI2cDevice = "/dev/i2c-1";
 constexpr const char* kGpioChip = "/dev/gpiochip0";
@@ -48,7 +51,7 @@ void setTimerOnce(int timerFd, int ms) {
 
 void drainTimerfd(int timerFd) {
     uint64_t expirations = 0;
-    while (::read(timerFd, &expirations, sizeof(expirations)) == sizeof(expirations)) {
+    while (::read(timerFd, &expirations, sizeof(expirations)) == static_cast<ssize_t>(sizeof(expirations))) {
     }
 }
 
@@ -143,6 +146,7 @@ void MonitorService::ensureGpioReady() {
     gpiod_line_settings* settings = gpiod_line_settings_new();
     gpiod_line_config* lineConfig = gpiod_line_config_new();
     gpiod_request_config* requestConfig = gpiod_request_config_new();
+
     if (!settings || !lineConfig || !requestConfig) {
         gpiod_line_settings_free(settings);
         gpiod_line_config_free(lineConfig);
@@ -151,12 +155,12 @@ void MonitorService::ensureGpioReady() {
     }
 
     gpiod_line_settings_set_direction(settings, GPIOD_LINE_DIRECTION_OUTPUT);
-    gpiod_line_settings_set_output_value(settings, GPIOD_LINE_VALUE_INACTIVE);
 
     const std::array<unsigned int, 3> offsets = {
         static_cast<unsigned int>(kLedR),
         static_cast<unsigned int>(kLedG),
-        static_cast<unsigned int>(kBuzzer)};
+        static_cast<unsigned int>(kBuzzer)
+    };
 
     if (gpiod_line_config_add_line_settings(lineConfig, offsets.data(), offsets.size(), settings) < 0) {
         gpiod_line_settings_free(settings);
@@ -175,6 +179,10 @@ void MonitorService::ensureGpioReady() {
     if (!gpioRequest_) {
         throw std::runtime_error("Failed to request monitor GPIO lines");
     }
+
+    setLedRed(false);
+    setLedGreen(false);
+    setBuzzer(false);
 }
 
 void MonitorService::ensureI2cReady() {
@@ -182,6 +190,7 @@ void MonitorService::ensureI2cReady() {
     if (i2cFd_ < 0) {
         throw std::runtime_error("Failed to open /dev/i2c-1 for PCF8591");
     }
+
     if (::ioctl(i2cFd_, I2C_SLAVE, kPcf8591Address) < 0) {
         throw std::runtime_error("Failed to select PCF8591 I2C address");
     }
@@ -197,14 +206,43 @@ void MonitorService::closeResources() {
         gpiod_line_request_release(gpioRequest_);
         gpioRequest_ = nullptr;
     }
+
     if (chip_) {
         gpiod_chip_close(chip_);
         chip_ = nullptr;
     }
 }
 
-void MonitorService::writeGpioValue(int offset, bool active) {
-    gpiod_line_request_set_value(gpioRequest_, offset, active ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE);
+void MonitorService::writePhysicalLevel(int offset, bool high) {
+    if (!gpioRequest_) {
+        return;
+    }
+
+    gpiod_line_request_set_value(
+        gpioRequest_,
+        offset,
+        high ? GPIOD_LINE_VALUE_ACTIVE : GPIOD_LINE_VALUE_INACTIVE
+    );
+}
+
+/* LED follows the actual working behavior of monitor(2).cpp:
+   true  -> HIGH
+   false -> LOW
+*/
+void MonitorService::setLedRed(bool on) {
+    writePhysicalLevel(kLedR, on);
+}
+
+void MonitorService::setLedGreen(bool on) {
+    writePhysicalLevel(kLedG, on);
+}
+
+/* Buzzer is LOW-active:
+   on  -> LOW
+   off -> HIGH
+*/
+void MonitorService::setBuzzer(bool on) {
+    writePhysicalLevel(kBuzzer, !on);
 }
 
 unsigned char MonitorService::readPcf8591Channel(int channel) {
@@ -215,12 +253,15 @@ unsigned char MonitorService::readPcf8591Channel(int channel) {
 
     unsigned char discard = 0;
     unsigned char value = 0;
+
     if (::read(i2cFd_, &discard, 1) != 1) {
         throw std::runtime_error("PCF8591 dummy read failed");
     }
+
     if (::read(i2cFd_, &value, 1) != 1) {
         throw std::runtime_error("PCF8591 value read failed");
     }
+
     return value;
 }
 
@@ -230,14 +271,18 @@ unsigned char MonitorService::readJoystick() {
     const unsigned char sw = readPcf8591Channel(2);
 
     unsigned char js = 0;
-    if (x >= 250) js = 2;
-    if (x <= 5) js = 1;
-    if (y >= 250) js = 4;
-    if (y <= 5) js = 3;
 
-    if (std::abs(static_cast<int>(x) - 127) < 30 && std::abs(static_cast<int>(y) - 127) < 30 && sw > 127) {
+    if (x >= 250) js = 2;
+    if (x <= 5)   js = 1;
+    if (y >= 250) js = 4;
+    if (y <= 5)   js = 3;
+
+    if (std::abs(static_cast<int>(x) - 127) < 30 &&
+        std::abs(static_cast<int>(y) - 127) < 30 &&
+        sw > 127) {
         js = 0;
     }
+
     return js;
 }
 
@@ -249,11 +294,13 @@ double MonitorService::readNtcTemperature() {
     constexpr double Rser = 10000.0;
 
     const unsigned char adc = readPcf8591Channel(3);
+
     double vr = Vref * static_cast<double>(adc) / 255.0;
     vr = std::clamp(vr, 0.000001, Vref - 0.000001);
 
     const double rt = Rser * vr / (Vref - vr);
     const double tk = 1.0 / ((std::log(rt / R0) / B) + (1.0 / T0));
+
     return tk - 273.15;
 }
 
@@ -265,6 +312,7 @@ void MonitorService::updateUiState(double temp, const std::string& status) {
         currentStatus_ = status;
         cb = statusCallback_;
     }
+
     if (cb) {
         cb(temp, status);
     }
@@ -275,13 +323,19 @@ void MonitorService::runLoop() {
     ensureI2cReady();
 
     epollFd_ = ::epoll_create1(0);
-    if (epollFd_ < 0) throwSys("epoll_create1");
+    if (epollFd_ < 0) {
+        throwSys("epoll_create1");
+    }
 
     timerFd_ = ::timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-    if (timerFd_ < 0) throwSys("timerfd_create");
+    if (timerFd_ < 0) {
+        throwSys("timerfd_create");
+    }
 
     stopFd_ = ::eventfd(0, EFD_NONBLOCK);
-    if (stopFd_ < 0) throwSys("eventfd");
+    if (stopFd_ < 0) {
+        throwSys("eventfd");
+    }
 
     {
         epoll_event ev{};
@@ -291,6 +345,7 @@ void MonitorService::runLoop() {
             throwSys("epoll_ctl(timerFd)");
         }
     }
+
     {
         epoll_event ev{};
         ev.events = EPOLLIN;
@@ -300,7 +355,13 @@ void MonitorService::runLoop() {
         }
     }
 
-    enum class Phase { Sample, BeepOn, BeepOff, Gap };
+    enum class Phase {
+        Sample,
+        BeepOn,
+        BeepOff,
+        Gap
+    };
+
     Phase phase = Phase::Sample;
     int beepMs = 0;
     int beepsLeft = 0;
@@ -319,15 +380,18 @@ void MonitorService::runLoop() {
 
         for (int i = 0; i < n; ++i) {
             const int fd = events[i].data.fd;
+
             if (fd == stopFd_) {
                 drainEventfd(stopFd_);
                 continue;
             }
+
             if (fd != timerFd_) {
                 continue;
             }
 
             drainTimerfd(timerFd_);
+
             if (stopRequested_) {
                 break;
             }
@@ -336,50 +400,59 @@ void MonitorService::runLoop() {
             case Phase::Sample: {
                 int low = lowLimit_.load();
                 int high = highLimit_.load();
+
                 const unsigned char joy = readJoystick();
                 switch (joy) {
-                case 1: --low; break;
-                case 2: ++low; break;
+                case 1: --low;  break;
+                case 2: ++low;  break;
                 case 3: ++high; break;
                 case 4: --high; break;
                 default: break;
                 }
+
                 if (low < high) {
                     lowLimit_.store(low);
                     highLimit_.store(high);
                 }
 
                 const double temp = readNtcTemperature();
+
                 if (temp < lowLimit_.load()) {
-                    writeGpioValue(kLedR, true);
-                    writeGpioValue(kLedG, false);
+                    // same logic as monitor(2).cpp
+                    setLedRed(true);
+                    setLedGreen(true);
+                    updateUiState(temp, "Too Cold");
+
                     beepsLeft = 3;
                     beepMs = 400;
-                    updateUiState(temp, "Too Cold");
-                    writeGpioValue(kBuzzer, true);
+                    setBuzzer(true);
                     phase = Phase::BeepOn;
                     setTimerOnce(timerFd_, beepMs);
                 } else if (temp >= highLimit_.load()) {
-                    writeGpioValue(kLedR, true);
-                    writeGpioValue(kLedG, true);
+                    // same logic as monitor(2).cpp
+                    setLedRed(true);
+                    setLedGreen(false);
+                    updateUiState(temp, "Too Hot");
+
                     beepsLeft = 3;
                     beepMs = 80;
-                    updateUiState(temp, "Too Hot");
-                    writeGpioValue(kBuzzer, true);
+                    setBuzzer(true);
                     phase = Phase::BeepOn;
                     setTimerOnce(timerFd_, beepMs);
                 } else {
-                    writeGpioValue(kLedR, false);
-                    writeGpioValue(kLedG, true);
-                    writeGpioValue(kBuzzer, false);
+                    // same logic as monitor(2).cpp
+                    setLedRed(false);
+                    setLedGreen(true);
+                    setBuzzer(false);
                     updateUiState(temp, "Normal");
+
                     phase = Phase::Gap;
                     setTimerOnce(timerFd_, 200);
                 }
             } break;
 
             case Phase::BeepOn:
-                writeGpioValue(kBuzzer, false);
+                setBuzzer(false);
                 phase = Phase::BeepOff;
                 setTimerOnce(timerFd_, beepMs);
                 break;
@@ -387,11 +460,11 @@ void MonitorService::runLoop() {
             case Phase::BeepOff:
                 --beepsLeft;
                 if (beepsLeft > 0) {
-                    writeGpioValue(kBuzzer, true);
+                    setBuzzer(true);
                     phase = Phase::BeepOn;
                     setTimerOnce(timerFd_, beepMs);
                 } else {
-                    writeGpioValue(kBuzzer, false);
+                    setBuzzer(false);
                     phase = Phase::Gap;
                     setTimerOnce(timerFd_, 200);
                 }
@@ -405,10 +478,8 @@ void MonitorService::runLoop() {
         }
     }
 
-    if (gpioRequest_) {
-        writeGpioValue(kBuzzer, false);
-        writeGpioValue(kLedR, false);
-        writeGpioValue(kLedG, false);
-    }
+    setBuzzer(false);
+    setLedRed(false);
+    setLedGreen(false);
     closeResources();
 }
