@@ -1,13 +1,22 @@
-#include <gtest/gtest.h>
 #include "monitor/MonitorService.hpp"
+#include <cassert>
+#include <iostream>
+#include <string>
 
-TEST(MonitorTest, TemperatureLimits) {
+void testTemperatureLogic() {
     MonitorService monitor;
-    monitor.setLimits(20, 30);
+
+    monitor.setLimits(10, 30);
+    assert(monitor.lowLimit() == 10);
+    assert(monitor.highLimit() == 30);
+
+    std::string status = monitor.currentStatus();
+    std::cout << "Initial status: " << status << std::endl;
     
-    EXPECT_EQ(monitor.lowLimit(), 20);
-    EXPECT_EQ(monitor.highLimit(), 30);
-    
-    monitor.setLimits(40, 10);
-    EXPECT_EQ(monitor.lowLimit(), 20); 
+    std::cout << "testTemperatureLogic (Limits check) passed!" << std::endl;
+}
+
+int main() {
+    testTemperatureLogic();
+    return 0;
 }

@@ -19,13 +19,7 @@ enum class Motion {
 class MotionController {
 public:
     explicit MotionController(IMotorDriver& driver) : driver_(driver) {}
-
-    /**
-     * @brief Apply the requested motion.
-     * @param m Motion mode.
-     * @param speed Duty cycle in percent.
-     */
-    void apply(Motion m, int speed);
+    void apply(Motion motion, int speed);
 
 private:
     IMotorDriver& driver_;
