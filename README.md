@@ -534,19 +534,27 @@ _TODO: Insert UML sequence diagram figure (Mermaid or image)._
 
 ## Circuit / Wiring Diagram
 
-This section should summarize how sensing, control, actuation, warning modules, and camera interfaces are wired to the Raspberry Pi and motor-control hardware.
+This section summarizes how sensing, control, actuation, warning modules, and camera interfaces are wired to the Raspberry Pi and motor-control hardware.
 
-Recommended contents:
-- GPIO mapping table
-- power distribution path
-- motor driver connections
-- sensor input connections (digital / analog via PCF8591)
-- buzzer / LED status outputs
-- camera and pan-tilt servo connection overview
-- IR receiver / remote-control interface
+<p align="center">
+  <img src="images/gpio_wiring_table.png" width="900"><br>
+  <em>Figure X. GPIO Wiring Table: Hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
+</p>
 
-Current reference schematics are provided in the `schematics/` folder. A future revision of this README can include a consolidated system-level wiring figure for faster reproduction.
-
+### Wiring Notes
+- **Buzzer** → GPIO17
+- **Red LED** → GPIO20
+- **Green LED** → GPIO21
+- **Left Motor PWMA** → GPIO18
+- **Left Motor AIN1** → GPIO22
+- **Left Motor AIN2** → GPIO27
+- **Right Motor PWMB** → GPIO13
+- **Right Motor BIN1** → GPIO25
+- **Right Motor BIN2** → GPIO24
+- **Left Line Tracking Sensor** → GPIO23
+- **Right Line Tracking Sensor** → GPIO26
+- **Left Obstacle Sensor** → GPIO16
+- **Right Obstacle Sensor** → GPIO12
 ---
 
 ## Data Logging, Alerts and Reporting
