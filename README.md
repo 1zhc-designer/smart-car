@@ -119,12 +119,10 @@ Provides motor driving capability for rover movement and low-level motion contro
 Includes environmental sensing and auxiliary modules used for routine inspection tasks.
 
 #### **Analog Temperature Sensor Module**
-![Analog Temperature Sensor Wiring](schematics/analog_temperature_sensor_wiring.jpg)
 
 Used for local temperature measurement and threshold-based monitoring.
 
 #### **PCF8591 ADC/DAC Module**
-![PCF8591 ADC/DAC Module Schematic](schematics/pcf8591_adc_dac_schematic.jpg)
 
 Provides analog-to-digital conversion for analog sensor input and enables flexible sensor integration.
 
@@ -145,7 +143,6 @@ Provides simple visual state indication such as normal, warning, or fault status
 Simplifies prototyping and wiring between the Raspberry Pi and peripheral modules.
 
 #### **IR Line Tracking Module**
-![IR Line Tracking Module Schematic](schematics/ir_line_tracking_module_schematic.png)
 
 Supports basic line-following behaviour for structured patrol paths.
 
@@ -154,11 +151,8 @@ Supports basic line-following behaviour for structured patrol paths.
 Enables remote manual control for targeted inspection and testing.
 
 #### **USB Camera + Pan-Tilt Servo Gimbal**
-![Fruit Color Recognition - Target Red](images/color_model_rgb_hsv_cmyk.jpg)
 
-Provides visual inspection capability and adjustable camera orientation for targeted observation.
-
-Fruit Color Recognition (Target: Red). This figure shows the colour-model diagram used for basic colour-based visual analysis.
+Provides visual inspection capability and adjustable camera orientation for targeted observation. Basic colour-based visual analysis is used for fruit and leaf inspection tasks.
 
 #### **Breadboard**
 
