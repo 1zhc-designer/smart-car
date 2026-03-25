@@ -9,49 +9,51 @@
 
 ## Overview
 
-The **Greenhouse Inspection Rover** is a mobile monitoring platform for routine greenhouse inspection, environmental sensing, and visual data collection. It integrates mobility, sensing, image capture, alert generation, and operator interaction into a single rover platform. The system is intended to help operators observe crop conditions more consistently, capture environmental variation across different positions, and support earlier responses to abnormal conditions.
+The **Greenhouse Inspection Rover** is a non-contact intelligent inspection and micro-environment intervention platform designed for **strawberry greenhouse** scenarios. It integrates mobility, environmental sensing, visual inspection, local alerting, desktop visualization, and operator takeover into a single rover system.
 
-More importantly, this project is not presented as a fully autonomous replacement for greenhouse labour. Instead, it explores how a low-cost robotic platform can restructure routine inspection into a more repeatable, traceable, and data-supported workflow. In that sense, the rover should be understood as a practical step from manual checking toward accessible smart-agriculture deployment.
+The rover is intended to support continuous monitoring of strawberry maturity, leaf health, and local environmental abnormalities inside greenhouse environments. By reducing repetitive manual inspection, lowering the risk of contact damage to delicate crops, and providing more traceable data for decision-making, the system aims to make greenhouse inspection more structured, efficient, and practical.
+
+Rather than presenting the rover as a fully autonomous replacement for greenhouse labour, this project explores how a low-cost robotic platform can restructure routine inspection into a more repeatable, traceable, and data-supported workflow.
 
 ## Project Story
 
-Greenhouse management depends heavily on regular inspection. Operators must move through aisles, observe plant conditions, check environmental parameters, and respond to abnormal changes before crop quality is affected. In practice, however, this work is often repetitive, manual, and difficult to standardize. As the number of checkpoints, sensed parameters, and visual observations increases, maintaining consistency becomes more difficult and more time-consuming.
+Strawberry cultivation is highly sensitive to environmental conditions and crop status. In greenhouse production, changes in temperature, light, humidity, and plant health can directly affect fruit quality, ripening progress, and final yield. However, traditional inspection still relies heavily on manual patrol. Growers or operators must walk through greenhouse aisles, check fruit maturity, observe whether leaves show yellowing or dark spots, and identify local environmental abnormalities based on experience.
 
-The **Greenhouse Inspection Rover** was developed in response to this challenge. The goal is not simply to build a small smart car with a few sensors, but to create a practical robotic platform for routine patrol, environmental sensing, and visual inspection inside greenhouse environments. By moving through aisles, collecting local measurements, and capturing plant images for review, the rover transforms inspection from an occasional manual task into a more structured engineering workflow.
+This traditional approach has several limitations. First, it is labour-intensive and time-consuming. Second, manual inspection is often difficult to standardize and depends strongly on individual experience. Third, strawberries are delicate crops: close inspection, touching, or moving leaves and fruits can easily cause bruising, contamination, or accidental damage, which directly affects product quality.
 
-This project is based on an important observation: greenhouse problems rarely appear all at once. Small local changes in temperature, humidity, or light can gradually influence plant growth, while early signs of stress may first appear through leaf colour change, fruit appearance, or growth inconsistency. Fixed monitoring points are useful, but they mainly reflect average conditions. A mobile rover, by contrast, can gather data closer to where plants actually grow and can build image records across multiple positions.
+The **Greenhouse Inspection Rover** was developed to address these practical problems in a strawberry greenhouse context. Rather than being just a smart car with sensors, it is intended as an integrated inspection platform. The rover combines **automatic line-following patrol and obstacle avoidance** for routine movement, **temperature sensing and threshold-based feedback** for local environmental judgment, **OpenCV-based fruit and leaf inspection** for non-contact crop observation, **buzzer and light alerts** for local warning, **GUI-based desktop visualization** for system monitoring, and **infrared remote control with pan-tilt adjustment** for manual takeover and close-up review.
 
-From this perspective, the rover should not be understood as an isolated hardware prototype. Its practical value depends on whether different subsystems can work together reliably: movement through greenhouse aisles, environmental sensing, image capture, threshold-based alerts, data logging, and operator control. Each module is useful on its own, but the real engineering challenge is system coordination. A rover with sensors, a camera, and motors is not automatically a deployable inspection system; it becomes useful only when those components can operate together in a stable and repeatable mission process.
+This design reflects a key observation: greenhouse problems are often **local rather than uniform**. One area may be slightly hotter, another may receive insufficient light, a few plants may show leaf abnormalities, and fruit in one row may ripen faster than those in another. Fixed observation and occasional manual checking are often not detailed or continuous enough to capture these differences. A mobile rover, by contrast, can move across the greenhouse, observe local variations, and generate image and sensor records with greater consistency.
 
-This also explains the realistic scope of the project. The rover does not claim to fully automate greenhouse management or replace growers’ judgment. Instead, it focuses on reducing repetitive manual workload, improving inspection consistency, and supporting earlier intervention through better data collection and review. In other words, its value lies in **workflow enhancement**, not immediate labour substitution.
+From this perspective, the value of the project lies not in any single function, but in how multiple functions work together as one inspection workflow. The rover is not only a moving platform, but a prototype system that connects **mobile inspection, environmental sensing, visual recognition, abnormal warning, human review, and data visualization**. Its purpose is to reduce repetitive manual work, lower contact-related crop damage, and support earlier and more data-supported intervention in greenhouse management.
 
-Like many emerging robotic systems, the rover is best understood as part of a gradual deployment path. Early value is most likely to appear in structured, repetitive, and easy-to-evaluate inspection tasks, rather than in completely open-ended agricultural autonomy. For that reason, this project emphasizes practical patrol, logging, and early warning first, while treating more advanced intelligence and closed-loop automation as future extensions.
-
-In short, the goal of this project is clear:
+In short, this project asks a practical question: **Can a lightweight, mobile, and expandable platform replace part of the traditional high-frequency manual inspection process without increasing crop damage risk?** The Greenhouse Inspection Rover is our answer to that question.
 
 **Measure. Monitor. Grow.**
 
 ## Why It Matters
 
-The importance of the **Greenhouse Inspection Rover** lies not in any single technical feature, but in the way it connects sensing, visual inspection, mobility, and operator interaction into one inspection workflow.
+The significance of the **Greenhouse Inspection Rover** lies in its ability to turn greenhouse inspection from a largely experience-based manual activity into a more structured workflow built on patrol, sensing, image capture, warning, and review.
 
-- It reduces repetitive manual patrol effort.
-- It improves consistency through repeatable patrol and logging procedures.
-- It helps identify local abnormal conditions earlier.
-- It creates timestamped records for comparison, reporting, and later review.
-- It provides a practical foundation for future smart-agriculture expansion.
+- It reduces repetitive manual greenhouse patrol.
+- It lowers the risk of damaging delicate strawberry fruits and leaves during inspection.
+- It improves the ability to detect local environmental abnormalities and crop-status changes earlier.
+- It supports non-contact inspection through image-based fruit and leaf observation.
+- It combines automatic patrol with human takeover, making the system practical rather than purely demonstrational.
+- It creates timestamped, reviewable inspection records through sensor logging, image capture, and GUI-based visualization.
 
-Most importantly, the project reflects a realistic deployment logic: meaningful impact is more likely to emerge through gradual improvement of structured inspection tasks than through immediate full autonomy. The rover therefore serves as a mobile assistant for greenhouse operators, supporting better monitoring rather than replacing human decision-making.
+More broadly, the project proposes a new inspection model for strawberry greenhouse management: **automatic patrol as the main process, manual review for suspicious cases, and data records to support decisions**. In this sense, the rover is not just a prototype vehicle, but a practical smart-agriculture inspection concept.
 
 ---
 
 ## Key Objectives
-- **Environmental Monitoring:** Collect temperature, humidity, and light measurements across different greenhouse locations.
-- **Visual Inspection:** Use an onboard camera to capture plant images for routine checks and progress tracking.
-- **Early Warning:** Detect abnormal conditions and generate alerts (threshold-based and trend-based) to support timely intervention.
-- **Data Logging & Traceability:** Store sensor readings and images with timestamps and optional location tags for later review and reporting.
-- **Safe Operation:** Ensure reliable movement in narrow aisles with basic obstacle handling, emergency stop, and fail-safe stop on errors.
-- **Ease of Use:** Provide a simple workflow for operators: start patrol → monitor → review results → export report.
+
+- **Non-Contact Crop Inspection:** Inspect strawberry fruits and leaves without direct contact, reducing the risk of bruising, contamination, or accidental damage.
+- **Mobile Greenhouse Patrol:** Perform routine patrol along greenhouse aisles through automatic line-following and basic obstacle avoidance.
+- **Micro-Environment Monitoring:** Measure local environmental conditions, especially temperature, and identify abnormal zones through configurable threshold logic.
+- **Visual Recognition:** Use OpenCV-based methods to detect fruit maturity and leaf-colour abnormalities for preliminary crop-status assessment.
+- **Local Warning and Human Review:** Provide buzzer/light alerts for abnormal conditions and support manual takeover through infrared remote control and pan-tilt camera adjustment.
+- **Visualization and Traceability:** Present system status, environmental data, and inspection results through a GUI, enabling more traceable and data-supported greenhouse management.
 
 ---
 
@@ -77,6 +79,7 @@ This section presents visual documentation of the rover, including real prototyp
 ---
 
 ## Table of Contents
+
 - [Bill of Materials (BOM)](#bill-of-materials-bom)
 - [System Functional Requirements](#system-functional-requirements)
 - [Extended Features](#extended-features)
@@ -100,11 +103,11 @@ This section presents visual documentation of the rover, including real prototyp
 
 ## Bill of Materials (BOM)
 
-This section lists the main hardware modules used in the **Greenhouse Inspection Rover**.
+This section lists the main hardware modules used to implement the non-contact strawberry greenhouse inspection platform, including mobility, sensing, warning, visual inspection, and operator-control functions.
 
 #### **Raspberry Pi 4 Model B (4GB recommended)**
 
-Acts as the main controller for sensing, image capture, logging, and higher-level task coordination.
+Acts as the main controller for sensing, image capture, logging, GUI interaction, and higher-level task coordination.
 
 #### **Motor Expansion Board**
 [Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf)
@@ -169,7 +172,7 @@ Used for battery or power monitoring to support low-voltage warning and safer op
 
 ## System Functional Requirements
 
-The greenhouse inspection rover shall provide the following functional capabilities to support routine patrol, data collection, and operator decision-making.
+The greenhouse inspection rover shall provide functional capabilities that support non-contact strawberry inspection, local environmental monitoring, abnormal-condition warning, and practical operator review in greenhouse patrol scenarios.
 
 ### Environmental Sensing
 - The system shall measure temperature, humidity, and light intensity at configurable intervals (time-based or distance-based).
@@ -180,21 +183,25 @@ The greenhouse inspection rover shall provide the following functional capabilit
 - The system shall capture still images of plants at configurable intervals and store them with timestamps.
 - The system shall support event-triggered image capture, for example when an environmental parameter exceeds a threshold.
 - The system shall allow the operator to manually trigger image capture during teleoperation.
+- The system shall support basic colour-based recognition for fruit maturity and leaf abnormality screening.
 
 ### Patrol and Movement
 - The system shall provide a manual control mode (teleoperation) for testing and targeted inspection.
 - The system shall provide a patrol mode that moves along greenhouse aisles and stops at sampling points.
 - The system shall implement basic obstacle handling: stop, wait, and/or reroute depending on available sensors.
+- The system shall support line-following behaviour for structured greenhouse patrol paths.
 
 ### Data Logging and Reporting
 - The system shall log sensor readings and mission metadata into a local file or database (e.g., CSV/SQLite).
 - The system shall store captured images with consistent naming (timestamp + optional location tag).
 - The system shall generate a mission summary including min/avg/max values, alert counts, and image references.
+- The system shall support traceable review of inspection records through logged data and visual outputs.
 
 ### Alerts and Thresholds
 - The system shall support configurable threshold-based alerts for temperature, humidity, and light.
 - The system shall support trend-based alerts (e.g., temperature rising continuously for N minutes).
 - The system shall record all alerts with timestamps and associated sensor values.
+- The system shall trigger audible and/or visual warning signals when abnormal conditions are detected.
 
 ### Safety and Fail-Safe Behavior
 - The system shall include an emergency stop function (hardware button or software command).
@@ -204,6 +211,7 @@ The greenhouse inspection rover shall provide the following functional capabilit
 ### Usability
 - The system shall provide a simple workflow: start mission → monitor status → review logs/images → export report.
 - The system shall provide clear status indication (LED/buzzer/on-screen messages) for states such as running, alert, and error.
+- The system shall support GUI-based monitoring and operator takeover for suspicious cases.
 
 ---
 
@@ -253,13 +261,13 @@ Example policy table (if–then rules):
 - Obstacle avoidance using ultrasonic/ToF sensors, with stop or reroute logic.
 
 ### Deployment Roadmap
-Because practical robotic impact is usually phased rather than immediate, the rover’s development path is also designed as a gradual roadmap:
+Because practical agricultural robotic impact is usually phased rather than immediate, the rover’s development path is also designed as a gradual roadmap:
 - **Phase 1:** manual control + sensing + basic logging
 - **Phase 2:** structured patrol + event-triggered capture + threshold alerts
-- **Phase 3:** dashboard + multi-point patrol + richer reporting
+- **Phase 3:** GUI/dashboard + multi-point patrol + richer reporting
 - **Phase 4:** optional closed-loop environmental response and higher-level vision analysis
 
-This phased approach reflects the idea that useful deployment should begin with structured, low-risk, and economically clear tasks before moving toward more complex autonomy.
+This phased approach reflects the idea that useful deployment should begin with structured, low-risk, and economically clear inspection tasks before moving toward more complex autonomy.
 
 ---
 
@@ -271,15 +279,16 @@ This section describes how an operator interacts with the greenhouse inspection 
 1. **Power On & Setup:** The operator powers on the rover, confirms battery level, and checks that the sensors and camera are detected.
 2. **Select Mode:** Choose one of the operating modes: Manual Inspection, Patrol Mission, or Data Review.
 3. **Start Mission:** The rover begins moving (or waits for teleoperation commands). Sensor sampling and logging start automatically.
-4. **Monitoring During Operation:** The operator observes live sensor values and camera preview (optional). Alerts are displayed if thresholds or trends are exceeded.
+4. **Monitoring During Operation:** The operator observes live sensor values, GUI status, and camera preview (optional). Alerts are displayed if thresholds or trends are exceeded.
 5. **Event Handling (If Any Alert Occurs):** The rover pauses (optional), captures extra close-up images, and records an event marker in the log.
-6. **Mission End:** The rover stops at the end of the route or returns to the start point (optional).
-7. **Review & Export:** The operator reviews the mission summary, images, and exports CSV/report files for greenhouse management records.
+6. **Manual Review / Takeover:** If needed, the operator takes over via infrared remote control and adjusts the pan-tilt camera for closer inspection.
+7. **Mission End:** The rover stops at the end of the route or returns to the start point (optional).
+8. **Review & Export:** The operator reviews the mission summary, images, and exports CSV/report files for greenhouse management records.
 
 ### Operating Modes
 - **Mode A — Manual Inspection (Teleoperation)**  
   Purpose: debugging, targeted inspection, and close-up image capture.  
-  Features enabled: manual drive, manual photo capture, live sensor readout.
+  Features enabled: manual drive, manual photo capture, pan-tilt review, live sensor readout.
 
 - **Mode B — Patrol Mission (Semi/Auto)**  
   Purpose: routine scheduled patrol along greenhouse aisles.  
@@ -294,7 +303,7 @@ This section describes how an operator interacts with the greenhouse inspection 
   Functions: view logs/images, clean storage, calibration offsets, sensor diagnostics.
 
 **State Machine (Recommended):**  
-Idle → Self-check → Manual / Patrol / Stationary → Alert-handling → Return / Stop → Report
+Idle → Self-check → Manual / Patrol / Stationary → Alert-handling → Manual Review / Return / Stop → Report
 
 Safety rule: any critical fault triggers Safe Stop and requires operator confirmation before resuming.
 
@@ -302,31 +311,32 @@ Safety rule: any critical fault triggers Safe Stop and requires operator confirm
 
 ## Software Architecture
 
-The greenhouse inspection rover software is designed as a modular system so that sensing, movement, vision, logging, and alert handling can evolve together without becoming tightly coupled. This reflects the central engineering idea behind the project: practical capability depends not only on the existence of modules, but on whether they can coordinate reliably in real inspection tasks.
+The greenhouse inspection rover software is designed as a modular system so that sensing, movement, vision, logging, alert handling, and GUI visualization can evolve together without becoming tightly coupled. This reflects the central engineering idea behind the project: practical capability depends not only on the existence of modules, but on whether they can coordinate reliably in real inspection tasks.
 
 ### High-Level Architecture
 Core modules:
-- **Mission Manager (State Machine / FSM):** Controls overall rover states and mission flow (Idle → Self-check → Patrol → Alert-handling → Return → Report).
+- **Mission Manager (State Machine / FSM):** Controls overall rover states and mission flow (Idle → Self-check → Patrol → Alert-handling → Review → Return → Report).
 - **Sensor Manager:** Reads temperature/humidity/light (and optional sensors) at a fixed rate, applies filtering, and publishes data.
-- **Vision Module:** Handles camera capture, file naming, storage, and optional CV inference.
+- **Vision Module:** Handles camera capture, file naming, storage, and OpenCV-based colour recognition for fruit/leaf inspection.
 - **Motion Control Module:** Provides low-level motor control and high-level motion primitives (forward/stop/turn).
-- **Navigation Module:** Implements patrol behaviour (checkpoints, obstacle stop/avoid, return-to-home).
-- **Alert Manager:** Evaluates thresholds/trends and triggers alerts and event actions (pause + extra photos).
+- **Navigation Module:** Implements patrol behaviour (checkpoints, line-following, obstacle stop/avoid, return-to-home).
+- **Alert Manager:** Evaluates thresholds/trends and triggers alerts and event actions (pause + extra photos + local warning).
 - **Data Logger:** Writes sensor data, events, and mission metadata into CSV/SQLite; manages image indexing.
-- **UI / Dashboard:** CLI or local web interface for controlling missions and reviewing results.
+- **UI / GUI Dashboard:** Desktop interface for monitoring system status, reviewing results, and supporting operator takeover.
 
 ### Data Flow
 - Sensors produce periodic readings → Sensor Manager
 - Readings are filtered and timestamped → sent to Logger + Alert Manager
-- Alert Manager may trigger event actions (pause + photo) via Mission Manager
+- Alert Manager may trigger event actions (pause + warning + photo) via Mission Manager
 - Vision Module stores images and returns file references → stored by Logger
+- GUI reads current status and logged outputs for visualization and operator review
 - At mission end, the Report Generator summarizes statistics and exports outputs
 
 ### Concurrency Model (Recommended)
 - Thread/Task 1: Sensor sampling (typically 1–5 Hz)
 - Thread/Task 2: Motion & navigation loop (50–100 Hz control loop; obstacle checks 5–20 Hz)
-- Thread/Task 3: Camera capture (periodic or event-driven)
-- Thread/Task 4: UI / communication (web server, remote control, status updates)
+- Thread/Task 3: Camera capture and OpenCV processing (periodic or event-driven)
+- Thread/Task 4: GUI / communication (remote control, status updates, result visualization)
 
 This separation prevents camera or disk I/O from blocking motor safety control.
 
@@ -335,7 +345,8 @@ This separation prevents camera or disk I/O from blocking motor safety control.
 - **Fail-safe first:** Any critical fault triggers Safe Stop in the Mission Manager.
 - **Configuration-driven:** Thresholds, sampling rates, and route checkpoints are stored in config files (YAML/JSON).
 - **Testability:** Sensor stubs and simulated inputs enable unit testing without hardware.
-- **Phased deployability:** Structured, low-risk functions are prioritized before more complex autonomous behaviours.
+- **Practical inspectability:** The system should support real operator review, not only automatic execution.
+- **Phased deployability:** Structured, low-risk functions are prioritised before more complex autonomous behaviours.
 
 ---
 
@@ -346,7 +357,7 @@ The repository is organised to separate documentation assets, hardware reference
 - `images/` — project images, logo, rover photos, and visual illustrations used in the README
 - `include/` — header files and interface definitions for C/C++ modules
 - `schematics/` — wiring diagrams, module schematics, and hardware reference files
-- `src/` — main source code for sensing, motion, patrol logic, logging, and control
+- `src/` — main source code for sensing, motion, patrol logic, logging, GUI control, and inspection functions
 - `tests/` — test programs or validation scripts for individual modules
 - `CMakeLists.txt` — project build configuration
 - `README.md` — project overview, documentation, and system description
@@ -357,54 +368,56 @@ Recommended logical module grouping inside `src/` / `include/`:
 - patrol/navigation module
 - alert and event module
 - camera / image capture module
+- OpenCV inspection module
 - data logging module
-- UI / remote-control module
+- GUI / remote-control module
 
-This structure supports modular development and makes it easier to extend the rover from a prototype into a more complete inspection platform.
+This structure supports modular development and makes it easier to extend the rover from a prototype into a more complete greenhouse inspection platform.
 
 ---
 
 ## User Case UML / Sequence Diagram
 
-This section describes the main user cases and the corresponding sequence of interactions between the operator and the rover subsystems. The diagrams clarify responsibilities across sensing, motion, vision, logging, and alert handling.
+This section describes the main user cases and the corresponding sequence of interactions between the operator and the rover subsystems. The diagrams clarify responsibilities across sensing, motion, vision, logging, alerts, and manual review.
 
 ### Main User Cases (Use Case List)
 - **Start Patrol Mission**  
   Actor: Operator  
-  Goal: Start an inspection mission and collect data/images automatically.
+  Goal: Start an inspection mission and collect environmental data/images automatically.
 
-- **Manual Inspection & Photo Capture**  
+- **Manual Inspection & Close-Up Review**  
   Actor: Operator  
-  Goal: Teleoperate the rover to a target plant and capture close-up images.
+  Goal: Teleoperate the rover to a target plant and inspect fruit or leaves without direct contact.
 
 - **Alert Event Handling**  
   Actor: Rover (system) + Operator  
-  Goal: Detect abnormal environmental conditions, capture evidence, and notify the operator.
+  Goal: Detect abnormal environmental or visual conditions, capture evidence, and notify the operator.
 
 - **End Mission & Export Report**  
   Actor: Operator  
   Goal: Stop the mission, review results, and export logs/images for record keeping.
 
 ### Sequence Diagram — Patrol Mission (UC-1)
-Participants: Operator, UI/Dashboard, MissionManager, SensorManager, AlertManager, CameraModule, DataLogger, MotorControl, ObstacleSensor (optional)
+Participants: Operator, GUI, MissionManager, SensorManager, AlertManager, VisionModule, DataLogger, MotorControl, ObstacleSensor (optional)
 
 Sequence (text form):
-- Operator → UI: Select Patrol Mode and press Start.
-- UI → MissionManager: `startMission(patrol)`
+- Operator → GUI: Select Patrol Mode and press Start.
+- GUI → MissionManager: `startMission(patrol)`
 - MissionManager → SelfCheck: battery/sensor/camera status verification
 - MissionManager → MotorControl: `beginPatrol()`
 - Loop (while patrol is running):
   - SensorManager → DataLogger: `log(sensor_readings, timestamp, location)`
   - SensorManager → AlertManager: `evaluate(readings)`
+  - VisionModule → DataLogger: `log(image_path, timestamp, location)`
   - AlertManager → MissionManager: if abnormal → `triggerEvent(alertType)`
-  - MissionManager → CameraModule: `captureImage(eventTag)`
-  - CameraModule → DataLogger: `log(image_path, timestamp, location, eventTag)`
+  - MissionManager → VisionModule: `captureImage(eventTag)`
   - ObstacleSensor → Navigation/MotorControl: if obstacle → `stop()` / `wait()` / `reroute()`
-- Operator → UI: Press Stop (or route ends).
-- UI → MissionManager: `stopMission()`
+- Operator → GUI: Review alert / take over manually if necessary
+- Operator → GUI: Press Stop (or route ends).
+- GUI → MissionManager: `stopMission()`
 - MissionManager → DataLogger: `finalizeMission()`
 - DataLogger → ReportGenerator: `generateSummary()`
-- UI → Operator: Display summary + provide export.
+- GUI → Operator: Display summary + provide export.
 
 _TODO: Insert UML sequence diagram figure (Mermaid or image)._
 
@@ -412,7 +425,7 @@ _TODO: Insert UML sequence diagram figure (Mermaid or image)._
 
 ## Circuit / Wiring Diagram
 
-This section should summarize how sensing, control, actuation, and alert modules are wired to the Raspberry Pi and motor-control hardware.
+This section should summarize how sensing, control, actuation, warning modules, and camera interfaces are wired to the Raspberry Pi and motor-control hardware.
 
 Recommended contents:
 - GPIO mapping table
@@ -421,6 +434,7 @@ Recommended contents:
 - sensor input connections (digital / analog via PCF8591)
 - buzzer / LED status outputs
 - camera and pan-tilt servo connection overview
+- IR receiver / remote-control interface
 
 Current reference schematics are provided in the `schematics/` folder. A future revision of this README can include a consolidated system-level wiring figure for faster reproduction.
 
@@ -436,6 +450,7 @@ The rover is intended to support traceable inspection rather than one-time obser
 - optional checkpoint / aisle ID
 - temperature / humidity / light readings
 - alert type and threshold status
+- fruit / leaf inspection result (if available)
 - image filename or path
 - battery level / low-voltage event
 - operator mode and mission state
@@ -452,6 +467,7 @@ Each alert entry should include:
 - threshold or trend condition
 - rover state at the time of alert
 - whether an extra image was captured
+- whether manual review was triggered
 
 ### Report Output
 A mission report may include:
@@ -460,9 +476,10 @@ A mission report may include:
 - min/avg/max values for each sensed parameter
 - number and type of alerts
 - list of captured images
-- brief operator notes if supported
+- brief inspection notes if supported
+- summary of suspicious fruit/leaf observations
 
-This reporting structure helps turn patrol activity into a reviewable management record.
+This reporting structure helps turn patrol activity into a reviewable greenhouse management record.
 
 ---
 
@@ -475,15 +492,17 @@ Recommended operating assumptions:
 - obstacle checking: 5–20 Hz
 - motion control loop: 50–100 Hz
 - image capture: periodic or event-triggered
+- GUI update: lightweight, non-blocking
 - logging: asynchronous where possible to avoid blocking motion control
 
 Design considerations:
 - motor safety control should always have higher priority than image storage
 - camera and file I/O should not freeze the patrol loop
 - alert detection should be lightweight enough to run during normal inspection
+- GUI refresh should not interfere with sensing or motion control
 - sampling frequency should be matched to rover speed and greenhouse layout
 
-The practical target is not maximum computational throughput, but stable, low-risk patrol performance under repeated operation.
+The practical target is not maximum computational throughput, but stable, low-risk patrol performance under repeated greenhouse operation.
 
 ---
 
@@ -497,13 +516,16 @@ The rover should be validated in stages, from individual modules to full patrol 
 - line-tracking response
 - buzzer / LED alert output
 - camera capture and file saving
+- GUI status display
 - battery-voltage monitoring
+- fruit / leaf colour-recognition baseline performance
 
 ### Integration Tests
 - simultaneous sensing + movement + logging
 - event-triggered image capture during patrol
 - remote manual override during semi-auto operation
 - alert generation under threshold violations
+- GUI-based monitoring during patrol
 - safe stop behaviour under simulated faults
 
 ### Scenario Tests
@@ -511,13 +533,15 @@ The rover should be validated in stages, from individual modules to full patrol 
 - checkpoint-based data capture
 - manual close-up inspection of a selected plant
 - abnormal-condition handling (e.g., sensor threshold exceeded)
+- suspicious leaf / fruit detection workflow
 - low-battery warning and controlled stop
 
 ### Success Criteria
 - data and image timestamps are recorded correctly
 - no critical module blocks the safety stop path
 - patrol missions can be repeated with consistent results
-- logs are readable and usable for post-mission review
+- GUI outputs remain readable and useful during operation
+- logs are usable for post-mission review and decision support
 
 ---
 
@@ -532,6 +556,7 @@ As a mobile robotic platform operating near plants, wiring, and operators, the r
 - software freeze or communication loss
 - false alerts or missed alerts
 - cable looseness or unstable hardware mounting
+- misclassification in basic visual recognition
 
 ### Mitigation Features
 - emergency stop function
@@ -540,9 +565,10 @@ As a mobile robotic platform operating near plants, wiring, and operators, the r
 - watchdog or timeout for control-loop failure
 - threshold validation and fault logging for abnormal sensor values
 - modular wiring and documented schematics for easier troubleshooting
+- operator takeover and manual review for uncertain cases
 
 ### Safety Principle
-If the system is uncertain, it should prefer to stop safely rather than continue moving.
+If the system is uncertain, it should prefer to stop safely and request review rather than continue moving or make overconfident decisions.
 
 This principle aligns with the project’s broader design logic: stable and low-risk deployment is more important than demonstrating maximum autonomy.
 
@@ -550,7 +576,7 @@ This principle aligns with the project’s broader design logic: stable and low-
 
 ## Acknowledgements
 
-This project was developed as a multidisciplinary student engineering effort combining embedded systems, sensing, motion control, and robotics documentation. The team acknowledges the use of Raspberry Pi-based prototyping tools, open hardware modules, and publicly available robotics development resources that supported rapid implementation and testing.
+This project was developed as a multidisciplinary student engineering effort combining embedded systems, sensing, motion control, computer vision, and robotics documentation. The team acknowledges the use of Raspberry Pi-based prototyping tools, open hardware modules, and publicly available robotics development resources that supported rapid implementation and testing.
 
 ---
 
@@ -565,7 +591,7 @@ This project was developed as a multidisciplinary student engineering effort com
 
 ## License (Third-Party Libraries)
 
-This repository may depend on third-party libraries, drivers, and hardware support packages. Please review the license terms of any external code, Python packages, C/C++ libraries, or vendor schematics used in the project before redistribution.
+This repository may depend on third-party libraries, drivers, and hardware support packages. Please review the license terms of any external code, Python packages, C/C++ libraries, OpenCV dependencies, or vendor schematics used in the project before redistribution.
 
 _Recommended follow-up: list specific libraries and their licenses here._
 
@@ -573,26 +599,24 @@ _Recommended follow-up: list specific libraries and their licenses here._
 
 ## Future Work
 
-Future development should follow a phased and practical roadmap rather than aiming for unrealistic full autonomy in a single step.
+Future development of the Greenhouse Inspection Rover should continue to improve its role as a non-contact inspection platform for strawberry greenhouse management.
 
 Potential next steps include:
-- improved obstacle avoidance with ultrasonic or ToF sensors
-- richer checkpoint-based patrol logic
-- long-term image comparison for plant growth tracking
-- a local dashboard for live status and mission review
-- more robust event handling and trend-based analytics
-- optional closed-loop environmental actuation
-- more reliable hardware packaging for field deployment
+- more reliable multi-point patrol in real greenhouse aisles
+- improved fruit-maturity and leaf-abnormality recognition with richer image datasets
+- integration of additional environmental sensing such as humidity and light intensity
+- stronger GUI functions for mission replay, image review, and trend visualization
+- more refined checkpoint-based inspection and data logging
+- improved obstacle handling in practical greenhouse environments
+- optional closed-loop micro-environment response through relay-controlled devices
 
-In line with the project story, the most meaningful future progress will come from improving **integration reliability**, **repeatability**, and **deployment readiness**.
+In line with the project story, the most meaningful future progress will come not simply from adding more features, but from improving **practical deployment**, **inspection consistency**, and **non-contact decision support**.
 
 ---
 
 ## Contact Us
 
-For project discussion, repository issues, or collaboration inquiries, please use the GitHub repository issue page or contact the project contributors through their university/project communication channels.
-
-_Recommended follow-up: replace this section with official email addresses if needed._
+For questions, suggestions, or collaboration related to this project, please open an issue in this repository.
 
 ---
 
