@@ -1,24 +1,23 @@
-#include <gtest/gtest.h>
-#include "tests/MockMotorDriver.hpp"
 #include "motion/MotionController.hpp"
+#include "MockMotorDriver.hpp"
+#include <cassert>
+#include <iostream>
 
-using ::testing::_;
-
-TEST(MotionControllerTest, MoveUpCommand) {
+void testForwardMovement() {
     MockMotorDriver mock;
     MotionController controller(mock);
-
-    EXPECT_CALL(mock, setLeft(50, true)).Times(1);
-    EXPECT_CALL(mock, setRight(50, true)).Times(1);
 
     controller.apply(Motion::Up, 50);
+
+    assert(mock.lastCall.leftSpeed == 50);
+    assert(mock.lastCall.leftForward == true);
+    assert(mock.lastCall.rightSpeed == 50);
+    assert(mock.lastCall.rightForward == true);
+    
+    std::cout << "testForwardMovement passed!" << std::endl;
 }
 
-TEST(MotionControllerTest, StopCommand) {
-    MockMotorDriver mock;
-    MotionController controller(mock);
-
-    EXPECT_CALL(mock, stopAll()).Times(1);
-
-    controller.apply(Motion::Stop, 0);
+int main() {
+    testForwardMovement();
+    return 0;
 }

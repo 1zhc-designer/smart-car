@@ -1,12 +1,31 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
 
+struct gpiod_chip;
+struct gpiod_line_request;
+
+/**
+ * @brief Temperature and alarm monitor using i2c-dev and libgpiod v2.
+ *
+ * Logic is aligned with the validated reference implementation:
+ * - LED and buzzer are active-low.
+ * - Low temperature  -> yellow (red + green) + slow beeps.
+ * - High temperature -> red + fast beeps.
+ * - Normal           -> green.
+ *
+ * PCF8591 channels are read via /dev/i2c-1.
+ * GPIO outputs are driven via libgpiod v2.
+ * The worker thread blocks in epoll_wait() on timerfd/eventfd.
+ */
 class MonitorService {
 public:
+    using StatusCallback = std::function<void(double, const std::string&)>;
+
     MonitorService() = default;
     ~MonitorService();
 
@@ -21,12 +40,27 @@ public:
     int lowLimit() const noexcept;
     int highLimit() const noexcept;
     std::string currentStatus() const;
+
     void setLimits(int low, int high);
+    void setStatusCallback(StatusCallback cb);
 
 private:
     void runLoop();
+    void ensureGpioReady();
+    void ensureI2cReady();
+    void closeResources();
 
-private:
+    unsigned char readPcf8591Channel(int channel);
+    unsigned char readJoystick();
+    double readNtcTemperature();
+
+    void writePhysicalLevel(int offset, bool high);
+    void setLedRed(bool on);
+    void setLedGreen(bool on);
+    void setBuzzer(bool on);
+
+    void updateUiState(double temp, const std::string& status);
+
     std::atomic<bool> stopRequested_{false};
     std::atomic<bool> running_{false};
     std::thread worker_;
@@ -37,6 +71,13 @@ private:
     mutable std::mutex stateMutex_;
     double currentTemperature_{0.0};
     std::string currentStatus_{"Initializing"};
+    StatusCallback statusCallback_;
 
     int stopFd_{-1};
+    int epollFd_{-1};
+    int timerFd_{-1};
+    int i2cFd_{-1};
+
+    gpiod_chip* chip_{nullptr};
+    gpiod_line_request* gpioRequest_{nullptr};
 };
