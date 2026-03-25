@@ -80,6 +80,8 @@ This section presents visual documentation of the rover, including real prototyp
 
 ## Table of Contents
 
+- [Main Libraries and Dependencies](#main-libraries-and-dependencies)
+- [Module-Level Libraries and Dependencies](#module-level-libraries-and-dependencies)
 - [Bill of Materials (BOM)](#bill-of-materials-bom)
 - [System Functional Requirements](#system-functional-requirements)
 - [Extended Features](#extended-features)
@@ -98,6 +100,115 @@ This section presents visual documentation of the rover, including real prototyp
 - [Future Work](#future-work)
 - [Contact Us](#contact-us)
 - [Last Updated](#last-updated)
+
+---
+
+## Main Libraries and Dependencies
+
+This project is implemented in C++ and relies on the following main libraries, frameworks, and system interfaces:
+
+- **libgpiod v2**  
+  Used for GPIO access and hardware control on Raspberry Pi, including motor control, buzzer output, LED indicators, line-tracking sensors, and obstacle-detection sensors.
+
+- **Qt5 (Widgets / Core / Gui)**  
+  Used to build the desktop GUI for system monitoring, status display, control interaction, camera-frame rendering, and visualization of inspection results.
+
+- **OpenCV**  
+  Used for camera capture, image preprocessing, HSV color-space conversion, fruit detection, leaf detection, color-based analysis, contour extraction, annotation drawing, preview display, and image conversion for the GUI.
+
+- **LIRC (`lirc_client`)**  
+  Used for infrared remote control input, including IR receiver initialization, remote-code decoding, and command mapping for vehicle motion and pan-tilt control.
+
+- **Linux i2c-dev interface**  
+  Used for communication with the PCA9685 PWM controller that drives the pan-tilt gimbal servos over I2C.
+
+- **C++ Standard Library**  
+  Used throughout the project for multithreading, synchronization, callbacks, timing, containers, sorting, numeric processing, and general application logic.
+
+- **POSIX / Linux system calls and interfaces**  
+  Used for low-level system tasks such as directory creation, file-descriptor control, `epoll`, `eventfd`, `timerfd`, `read`, `write`, `close`, `ioctl`, and thread-safe event handling on Linux.
+
+---
+
+## Module-Level Libraries and Dependencies
+
+### Camera / Vision Module
+
+The camera subsystem is implemented as a dedicated C++ service (`CameraService`) for real-time image acquisition, target detection, preview display, and event-based image saving.
+
+**Libraries and interfaces used**
+- **OpenCV**  
+  Used for camera input (`cv::VideoCapture`), frame preprocessing, HSV masking, morphology operations, contour extraction, fruit detection, leaf detection, annotation drawing, preview display, and image saving.
+- **C++ Standard Library**  
+  Used for multithreading, synchronization, callbacks, containers, timing control, sorting, and detection-result publishing.
+- **POSIX / Linux system calls**  
+  Used for checking and creating the local image-save directory.
+
+### Infrared Remote Module
+
+The infrared remote module is implemented as a dedicated C++ service (`IrRemote`) for decoding remote-control input and publishing typed commands to the internal DDS-style message bus.
+
+**Libraries and interfaces used**
+- **LIRC (`lirc_client`)**  
+  Used for infrared receiver initialization, remote configuration loading, code reading, and cleanup.
+- **POSIX / Linux system interfaces**  
+  Used for `epoll`, `eventfd`, `read`, `write`, and `close` to implement blocking, event-driven IR listening and controlled thread shutdown.
+- **C++ Standard Library**  
+  Used for threading, atomic state control, callback handling, and debounce timing.
+- **LocalDdsBus / VehicleTopics**  
+  Used as the project’s internal DDS-style communication layer so that the IR module publishes typed motion and gimbal commands without directly controlling the hardware.
+
+### Motor Control Module
+
+The motor-control subsystem is implemented as a differential-drive driver based on **libgpiod v2**. It controls the left and right motors independently and generates software PWM through a dedicated worker thread.
+
+**Libraries and interfaces used**
+- **libgpiod v2**  
+  Used for Raspberry Pi GPIO line access, output-line configuration, and setting motor direction / PWM pin states.
+- **POSIX / Linux system interfaces**  
+  Used for `epoll`, `eventfd`, `timerfd`, `read`, `write`, and `close` to implement event-driven software PWM without busy waiting.
+- **C++ Standard Library**  
+  Used for threading, atomic state control, mutex protection, speed clamping, fixed-size arrays, and runtime error handling.
+- **IMotorDriver interface**  
+  Used as an internal abstraction layer so that the motor driver implementation can be replaced or extended more easily in the future.
+
+### Qt GUI Module
+
+The desktop control interface is implemented with **Qt5** and provides a user-friendly panel for camera preview, vehicle motion control, gimbal control, and temperature monitoring.
+
+**Libraries and frameworks used**
+- **Qt5 Widgets**  
+  Used to build the main window and interactive controls, including buttons, labels, spin boxes, layouts, and group boxes.
+- **Qt5 Core**  
+  Used for the signal-slot mechanism, timers, and string handling in the GUI event loop.
+- **Qt5 Gui**  
+  Used for image display components such as `QImage` and `QPixmap`.
+- **OpenCV**  
+  Used together with Qt to convert `cv::Mat` camera frames into displayable GUI images.
+- **C++ Standard Library**  
+  Used for time durations, strings, and general application logic inside the façade layer.
+- **LocalDdsBus / VehicleTopics / SystemFacade**  
+  Used as the internal coordination layer so that the GUI publishes typed commands instead of directly controlling low-level hardware.
+
+### Gimbal Module
+
+The pan-tilt gimbal subsystem is implemented as a dedicated servo-control service based on a **PCA9685 PWM driver over Linux I2C**. It receives typed commands through the internal DDS-style bus and converts them into pan/tilt servo movements.
+
+**Libraries and interfaces used**
+- **Linux i2c-dev interface**  
+  Used for low-level communication with the PCA9685 servo controller through `/dev/i2c-1`.
+- **POSIX / Linux system interfaces**  
+  Used for `open`, `read`, `write`, `close`, `ioctl`, and `usleep` during I2C device access and PWM-controller configuration.
+- **C++ Standard Library**  
+  Used for mutex-based synchronization, I2C payload construction, numeric calculations, state management, and runtime error handling.
+- **LocalDdsBus / VehicleTopics**  
+  Used as the internal DDS-style communication layer so that gimbal commands from the GUI and IR remote module can be handled in a unified way.
+
+**Hardware notes**
+- **PWM controller:** PCA9685  
+- **I2C device:** `/dev/i2c-1`  
+- **Default I2C address:** `0x40`  
+- **Servo channels:** tilt = channel 0, pan = channel 1
 
 ---
 
@@ -317,6 +428,8 @@ Core modules:
 - **Alert Manager:** Evaluates thresholds/trends and triggers alerts and event actions (pause + extra photos + local warning).
 - **Data Logger:** Writes sensor data, events, and mission metadata into CSV/SQLite; manages image indexing.
 - **UI / GUI Dashboard:** Desktop interface for monitoring system status, reviewing results, and supporting operator takeover.
+- **Infrared Remote Module:** Receives and decodes IR remote-control input through LIRC, applies debounce logic, and publishes motion/gimbal commands to the internal DDS-style bus.
+- **Gimbal Module:** Controls the pan-tilt servos through PCA9685 over Linux I2C and executes typed gimbal commands from the internal bus.
 
 ### Data Flow
 - Sensors produce periodic readings → Sensor Manager
@@ -363,6 +476,8 @@ Recommended logical module grouping inside `src/` / `include/`:
 - alert and event module
 - camera / image capture module
 - OpenCV inspection module
+- infrared remote module
+- gimbal control module
 - data logging module
 - GUI / remote-control module
 
@@ -585,7 +700,7 @@ This project was developed as a multidisciplinary student engineering effort com
 
 ## License (Third-Party Libraries)
 
-This repository may depend on third-party libraries, drivers, and hardware support packages. Please review the license terms of any external code, Python packages, C/C++ libraries, OpenCV dependencies, or vendor schematics used in the project before redistribution.
+This repository may depend on third-party libraries, drivers, and hardware support packages. Please review the license terms of any external code, Python packages, C/C++ libraries, Qt5, OpenCV, LIRC, libgpiod dependencies, Linux i2c-dev related components, or vendor schematics used in the project before redistribution.
 
 _Recommended follow-up: list specific libraries and their licenses here._
 
