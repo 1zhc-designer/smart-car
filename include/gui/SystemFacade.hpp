@@ -53,6 +53,7 @@ public:
     void setTemperatureLimits(int low, int high);
 
     cv::Mat latestFrame() const;
+    void setFrameCallback(CameraService::FrameCallback callback);
 
 private:
     static constexpr int kSpeedForward = 50;

@@ -3,6 +3,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QMetaObject>
 #include <QPixmap>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -29,14 +30,17 @@ QImage matToQImage(const cv::Mat& mat) {
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setupUi();
     connectSignals();
+
+    system_.setFrameCallback([this]() {
+        QMetaObject::invokeMethod(this, [this]() {
+            refreshUi();
+        }, Qt::QueuedConnection);
+    });
+
     system_.start();
 
     lowLimitSpin_->setValue(system_.lowLimit());
     highLimitSpin_->setValue(system_.highLimit());
-
-    refreshTimer_ = new QTimer(this);
-    connect(refreshTimer_, &QTimer::timeout, this, &MainWindow::refreshUi);
-    refreshTimer_->start(100);
 
     refreshUi();
 }

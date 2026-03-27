@@ -4,7 +4,6 @@
 #include <QMainWindow>
 #include <QPushButton>
 #include <QSpinBox>
-#include <QTimer>
 
 #include "gui/SystemFacade.hpp"
 
@@ -19,12 +18,12 @@ public:
     ~MainWindow() override;
 
 private slots:
-    void refreshUi();
     void applyTemperatureLimits();
 
 private:
     void setupUi();
     void connectSignals();
+    void refreshUi();
     void updateCameraView();
     void updateTemperatureView();
 
@@ -49,6 +48,4 @@ private:
     QSpinBox* lowLimitSpin_{nullptr};
     QSpinBox* highLimitSpin_{nullptr};
     QPushButton* applyLimitsBtn_{nullptr};
-
-    QTimer* refreshTimer_{nullptr};
 };
