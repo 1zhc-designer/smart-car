@@ -6,11 +6,21 @@
 #include <string>
 #include <thread>
 
+struct gpiod_chip;
+struct gpiod_line_request;
+
 /**
  * @brief Temperature and alarm monitor using i2c-dev and libgpiod v2.
  *
- * PCF8591 channels are read via /dev/i2c-1. LEDs and the buzzer are driven via
- * libgpiod. The worker thread blocks in epoll_wait() on timerfd/eventfd.
+ * Logic is aligned with the validated reference implementation:
+ * - LED and buzzer are active-low.
+ * - Low temperature  -> yellow (red + green) + slow beeps.
+ * - High temperature -> red + fast beeps.
+ * - Normal           -> green.
+ *
+ * PCF8591 channels are read via /dev/i2c-1.
+ * GPIO outputs are driven via libgpiod v2.
+ * The worker thread blocks in epoll_wait() on timerfd/eventfd.
  */
 class MonitorService {
 public:
@@ -30,6 +40,7 @@ public:
     int lowLimit() const noexcept;
     int highLimit() const noexcept;
     std::string currentStatus() const;
+
     void setLimits(int low, int high);
     void setStatusCallback(StatusCallback cb);
 
@@ -38,10 +49,16 @@ private:
     void ensureGpioReady();
     void ensureI2cReady();
     void closeResources();
+
     unsigned char readPcf8591Channel(int channel);
     unsigned char readJoystick();
     double readNtcTemperature();
-    void writeGpioValue(int offset, bool active);
+
+    void writePhysicalLevel(int offset, bool high);
+    void setLedRed(bool on);
+    void setLedGreen(bool on);
+    void setBuzzer(bool on);
+
     void updateUiState(double temp, const std::string& status);
 
     std::atomic<bool> stopRequested_{false};
@@ -60,6 +77,7 @@ private:
     int epollFd_{-1};
     int timerFd_{-1};
     int i2cFd_{-1};
-    struct gpiod_chip* chip_{nullptr};
-    struct gpiod_line_request* gpioRequest_{nullptr};
+
+    gpiod_chip* chip_{nullptr};
+    gpiod_line_request* gpioRequest_{nullptr};
 };

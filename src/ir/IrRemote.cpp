@@ -1,14 +1,12 @@
 #include "ir/IrRemote.hpp"
 
-#include <cerrno>
-#include "gimbal/GimbalService.hpp"
-
 #include <lirc/lirc_client.h>
 
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
@@ -24,151 +22,161 @@ bool contains(const char* src, const char* needle) {
     return src && needle && std::strstr(src, needle);
 }
 
-constexpr int kSpeedForward = 50;
-constexpr int kSpeedTurn = 70;
-const std::chrono::milliseconds kContinuous = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::hours(24));
-constexpr auto kStopDur = std::chrono::milliseconds(10);
-
 void drainEventfd(int eventFd) {
     uint64_t value = 0;
     while (true) {
-        const ssize_t r = ::read(eventFd, &value, sizeof(value));
-        if (r == static_cast<ssize_t>(sizeof(value))) {
+        const ssize_t readSize = ::read(eventFd, &value, sizeof(value));
+        if (readSize == static_cast<ssize_t>(sizeof(value))) {
             continue;
         }
-        if (r < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        if (readSize < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             break;
         }
         break;
     }
 }
 
-enum class GimbalCommand {
-    None,
-    TiltUp,
-    TiltDown,
-    PanLeft,
-    PanRight,
-    Reset
-};
+constexpr int kSpeedForward = 50;
+constexpr int kSpeedTurn = 70;
+constexpr auto kContinuous = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::hours(24));
+constexpr auto kStopDuration = std::chrono::milliseconds(10);
 
-bool decodeMotion(const char* code, Motion& motion, int& speed, std::chrono::milliseconds& duration) {
-    motion = Motion::Stop;
-    speed = 0;
-    duration = kStopDur;
+bool decodeMotion(const char* code, MotionCommandTopic& topic) {
+    topic.motion = Motion::Stop;
+    topic.speed = 0;
+    topic.duration = kStopDuration;
+    topic.source = "ir";
 
     if (contains(code, kKeyMotionForward)) {
-        motion = Motion::Up;
-        speed = kSpeedForward;
-        duration = kContinuous;
+        topic.motion = Motion::Up;
+        topic.speed = kSpeedForward;
+        topic.duration = kContinuous;
         return true;
     }
     if (contains(code, kKeyMotionBackward)) {
-        motion = Motion::Down;
-        speed = kSpeedForward;
-        duration = kContinuous;
+        topic.motion = Motion::Down;
+        topic.speed = kSpeedForward;
+        topic.duration = kContinuous;
         return true;
     }
     if (contains(code, kKeyMotionLeft)) {
-        motion = Motion::Left;
-        speed = kSpeedTurn;
-        duration = kContinuous;
+        topic.motion = Motion::Left;
+        topic.speed = kSpeedTurn;
+        topic.duration = kContinuous;
         return true;
     }
     if (contains(code, kKeyMotionRight)) {
-        motion = Motion::Right;
-        speed = kSpeedTurn;
-        duration = kContinuous;
+        topic.motion = Motion::Right;
+        topic.speed = kSpeedTurn;
+        topic.duration = kContinuous;
         return true;
     }
     if (contains(code, kKeyStop)) {
-        motion = Motion::Stop;
-        speed = 0;
-        duration = kStopDur;
+        topic.motion = Motion::Stop;
+        topic.speed = 0;
+        topic.duration = kStopDuration;
         return true;
     }
     return false;
 }
 
-GimbalCommand decodeGimbal(const char* code) {
-    if (contains(code, " KEY_NUMERIC_2 ")) return GimbalCommand::TiltUp;
-    if (contains(code, " KEY_NUMERIC_8 ")) return GimbalCommand::TiltDown;
-    if (contains(code, " KEY_NUMERIC_4 ")) return GimbalCommand::PanLeft;
-    if (contains(code, " KEY_NUMERIC_6 ")) return GimbalCommand::PanRight;
-    if (contains(code, " KEY_NUMERIC_5 ")) return GimbalCommand::Reset;
-    return GimbalCommand::None;
+bool decodeGimbal(const char* code, GimbalCommandTopic& topic) {
+    topic.source = "ir";
+    if (contains(code, " KEY_NUMERIC_2 ")) {
+        topic.command = GimbalCommand::TiltUp;
+        return true;
+    }
+    if (contains(code, " KEY_NUMERIC_8 ")) {
+        topic.command = GimbalCommand::TiltDown;
+        return true;
+    }
+    if (contains(code, " KEY_NUMERIC_4 ")) {
+        topic.command = GimbalCommand::PanLeft;
+        return true;
+    }
+    if (contains(code, " KEY_NUMERIC_6 ")) {
+        topic.command = GimbalCommand::PanRight;
+        return true;
+    }
+    if (contains(code, " KEY_NUMERIC_5 ")) {
+        topic.command = GimbalCommand::Reset;
+        return true;
+    }
+    return false;
 }
 } // namespace
 
-IrRemote::IrRemote(Scheduler& sched, GimbalService& gimbal) : sched_(sched), gimbal_(gimbal) {}
+IrRemote::IrRemote(LocalDdsBus& bus) : bus_(bus) {}
 
 IrRemote::~IrRemote() {
     stop();
 }
 
-void IrRemote::setCommandCallback(CommandCallback cb) {
-    commandCallback_ = std::move(cb);
+void IrRemote::setCommandCallback(CommandCallback callback) {
+    commandCallback_ = std::move(callback);
 }
 
 void IrRemote::start() {
-    if (running_) {
+    if (running_.exchange(true, std::memory_order_acq_rel)) {
         return;
     }
 
     lircFd_ = lirc_init("ircontrol", 0);
     if (lircFd_ == -1) {
+        running_.store(false, std::memory_order_release);
         throw std::runtime_error("lirc_init failed");
     }
 
     if (lirc_readconfig(nullptr, &config_, nullptr) != 0) {
         lirc_deinit();
         config_ = nullptr;
+        lircFd_ = -1;
+        running_.store(false, std::memory_order_release);
         throw std::runtime_error("lirc_readconfig failed");
     }
 
     stopFd_ = ::eventfd(0, EFD_NONBLOCK);
     if (stopFd_ < 0) {
+        stop();
         throw std::runtime_error("eventfd failed for IR remote");
     }
 
     epollFd_ = ::epoll_create1(0);
     if (epollFd_ < 0) {
+        stop();
         throw std::runtime_error("epoll_create1 failed for IR remote");
     }
 
-    {
-        epoll_event ev{};
-        ev.events = EPOLLIN;
-        ev.data.fd = lircFd_;
-        if (::epoll_ctl(epollFd_, EPOLL_CTL_ADD, lircFd_, &ev) < 0) {
-            throw std::runtime_error("epoll_ctl add lircFd failed");
-        }
+    epoll_event irEvent{};
+    irEvent.events = EPOLLIN;
+    irEvent.data.fd = lircFd_;
+    if (::epoll_ctl(epollFd_, EPOLL_CTL_ADD, lircFd_, &irEvent) < 0) {
+        stop();
+        throw std::runtime_error("epoll_ctl add lircFd failed");
     }
-    {
-        epoll_event ev{};
-        ev.events = EPOLLIN;
-        ev.data.fd = stopFd_;
-        if (::epoll_ctl(epollFd_, EPOLL_CTL_ADD, stopFd_, &ev) < 0) {
-            throw std::runtime_error("epoll_ctl add stopFd failed");
-        }
+
+    epoll_event stopEvent{};
+    stopEvent.events = EPOLLIN;
+    stopEvent.data.fd = stopFd_;
+    if (::epoll_ctl(epollFd_, EPOLL_CTL_ADD, stopFd_, &stopEvent) < 0) {
+        stop();
+        throw std::runtime_error("epoll_ctl add stopFd failed");
     }
 
     lastMotion_ = Motion::Stop;
     lastMotionTs_ = std::chrono::steady_clock::now();
     lastGimbalTs_ = std::chrono::steady_clock::now();
 
-    running_ = true;
     thread_ = std::thread(&IrRemote::loop, this);
 }
 
 void IrRemote::stop() {
-    if (!running_) {
+    if (!running_.exchange(false, std::memory_order_acq_rel)) {
         return;
     }
 
-    running_ = false;
     if (stopFd_ >= 0) {
-        uint64_t one = 1;
+        const uint64_t one = 1;
         (void)::write(stopFd_, &one, sizeof(one));
     }
 
@@ -193,7 +201,7 @@ void IrRemote::stop() {
         lircFd_ = -1;
     }
 
-    sched_.replaceNow({Motion::Stop, 0, kStopDur});
+    bus_.publish(MotionCommandTopic{Motion::Stop, 0, kStopDuration, "ir-stop"});
 }
 
 void IrRemote::emitCommand(const std::string& text) {
@@ -205,17 +213,17 @@ void IrRemote::emitCommand(const std::string& text) {
 void IrRemote::loop() {
     epoll_event events[4];
 
-    while (running_) {
-        const int n = ::epoll_wait(epollFd_, events, 4, -1);
-        if (n < 0) {
+    while (running_.load(std::memory_order_acquire)) {
+        const int ready = ::epoll_wait(epollFd_, events, 4, -1);
+        if (ready < 0) {
             if (errno == EINTR) {
                 continue;
             }
             break;
         }
 
-        for (int i = 0; i < n; ++i) {
-            const int fd = events[i].data.fd;
+        for (int index = 0; index < ready; ++index) {
+            const int fd = events[index].data.fd;
             if (fd == stopFd_) {
                 drainEventfd(stopFd_);
                 continue;
@@ -240,60 +248,28 @@ void IrRemote::loop() {
 void IrRemote::handleCode(const char* code) {
     const auto now = std::chrono::steady_clock::now();
 
-    switch (decodeGimbal(code)) {
-    case GimbalCommand::TiltUp:
+    GimbalCommandTopic gimbalTopic{};
+    if (decodeGimbal(code, gimbalTopic)) {
         if ((now - lastGimbalTs_) >= kGimbalDebounce) {
-            gimbal_.tiltUp();
             lastGimbalTs_ = now;
-            emitCommand("gimbal_up");
+            bus_.publish(gimbalTopic);
+            emitCommand("gimbal_command");
         }
-        return;
-    case GimbalCommand::TiltDown:
-        if ((now - lastGimbalTs_) >= kGimbalDebounce) {
-            gimbal_.tiltDown();
-            lastGimbalTs_ = now;
-            emitCommand("gimbal_down");
-        }
-        return;
-    case GimbalCommand::PanLeft:
-        if ((now - lastGimbalTs_) >= kGimbalDebounce) {
-            gimbal_.panLeft();
-            lastGimbalTs_ = now;
-            emitCommand("gimbal_left");
-        }
-        return;
-    case GimbalCommand::PanRight:
-        if ((now - lastGimbalTs_) >= kGimbalDebounce) {
-            gimbal_.panRight();
-            lastGimbalTs_ = now;
-            emitCommand("gimbal_right");
-        }
-        return;
-    case GimbalCommand::Reset:
-        if ((now - lastGimbalTs_) >= kGimbalDebounce) {
-            gimbal_.reset();
-            lastGimbalTs_ = now;
-            emitCommand("gimbal_reset");
-        }
-        return;
-    case GimbalCommand::None:
-        break;
-    }
-
-    Motion motion;
-    int speed = 0;
-    std::chrono::milliseconds duration{0};
-    if (!decodeMotion(code, motion, speed, duration)) {
         return;
     }
 
-    const bool sameMotion = (motion == lastMotion_);
+    MotionCommandTopic motionTopic{};
+    if (!decodeMotion(code, motionTopic)) {
+        return;
+    }
+
+    const bool sameMotion = (motionTopic.motion == lastMotion_);
     if ((now - lastMotionTs_) < kMotionDebounce && sameMotion) {
         return;
     }
 
     lastMotionTs_ = now;
-    lastMotion_ = motion;
-    sched_.replaceNow({motion, speed, duration});
+    lastMotion_ = motionTopic.motion;
+    bus_.publish(motionTopic);
     emitCommand("motion_command");
 }
