@@ -117,3 +117,7 @@ void SystemFacade::setTemperatureLimits(int low, int high) {
 cv::Mat SystemFacade::latestFrame() const {
     return camera_.latestFrame();
 }
+
+void SystemFacade::setFrameCallback(CameraService::FrameCallback callback) {
+    camera_.setFrameCallback(std::move(callback));
+}
