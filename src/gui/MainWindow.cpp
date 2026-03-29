@@ -1,5 +1,7 @@
 #include "gui/MainWindow.hpp"
 
+#include <cmath>
+
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QImage>
@@ -51,11 +53,25 @@ MainWindow::~MainWindow() {
 
 void MainWindow::setupUi() {
     setWindowTitle("Smart Car Control");
-    resize(1100, 850);
+    resize(1100, 900);
 
     auto* central = new QWidget(this);
     setCentralWidget(central);
     auto* mainLayout = new QVBoxLayout(central);
+
+    auto* modeGroup = new QGroupBox("Operation Mode", this);
+    auto* modeLayout = new QHBoxLayout(modeGroup);
+    modeCombo_ = new QComboBox(this);
+    modeCombo_->addItem("Tracking Mode");
+    modeCombo_->addItem("Manual Mode");
+    modeCombo_->setCurrentIndex(1);
+    modeStatusLabel_ = new QLabel("Current Mode: Manual", this);
+    modeLayout->addWidget(new QLabel("Mode:", this));
+    modeLayout->addWidget(modeCombo_);
+    modeLayout->addSpacing(20);
+    modeLayout->addWidget(modeStatusLabel_);
+    modeLayout->addStretch();
+    mainLayout->addWidget(modeGroup);
 
     auto* cameraGroup = new QGroupBox("Camera View", this);
     auto* cameraLayout = new QVBoxLayout(cameraGroup);
@@ -148,6 +164,7 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::connectSignals() {
+    connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::applyModeSelection);
     connect(forwardBtn_, &QPushButton::clicked, this, [this]() { system_.moveForward(); });
     connect(backwardBtn_, &QPushButton::clicked, this, [this]() { system_.moveBackward(); });
     connect(leftBtn_, &QPushButton::clicked, this, [this]() { system_.turnLeft(); });
@@ -162,6 +179,7 @@ void MainWindow::connectSignals() {
 }
 
 void MainWindow::refreshUi() {
+    updateModeView();
     updateCameraView();
     updateTemperatureView();
 }
@@ -174,6 +192,38 @@ void MainWindow::applyTemperatureLimits() {
     }
 }
 
+void MainWindow::applyModeSelection() {
+    if (modeCombo_->currentIndex() == 0) {
+        system_.setMode(SystemFacade::ControlMode::Tracking);
+    } else {
+        system_.setMode(SystemFacade::ControlMode::Manual);
+    }
+    updateModeView();
+}
+
+void MainWindow::updateModeView() {
+    const bool manual = system_.mode() == SystemFacade::ControlMode::Manual;
+    const int expectedIndex = manual ? 1 : 0;
+    if (modeCombo_->currentIndex() != expectedIndex) {
+        modeCombo_->blockSignals(true);
+        modeCombo_->setCurrentIndex(expectedIndex);
+        modeCombo_->blockSignals(false);
+    }
+
+    modeStatusLabel_->setText(manual ? "Current Mode: Manual"
+                                     : "Current Mode: Tracking");
+
+    forwardBtn_->setEnabled(manual);
+    backwardBtn_->setEnabled(manual);
+    leftBtn_->setEnabled(manual);
+    rightBtn_->setEnabled(manual);
+    gimbalUpBtn_->setEnabled(manual);
+    gimbalDownBtn_->setEnabled(manual);
+    gimbalLeftBtn_->setEnabled(manual);
+    gimbalRightBtn_->setEnabled(manual);
+    gimbalResetBtn_->setEnabled(manual);
+}
+
 void MainWindow::updateCameraView() {
     const cv::Mat frame = system_.latestFrame();
     const QImage image = matToQImage(frame);
@@ -184,12 +234,14 @@ void MainWindow::updateCameraView() {
 }
 
 void MainWindow::updateTemperatureView() {
-    currentTempLabel_->setText(QString("Current Temperature: %1 °C").arg(system_.currentTemperature(), 0, 'f', 2));
-    currentStatusLabel_->setText(QString("Status: %1").arg(QString::fromStdString(system_.currentStatus())));
-    if (!lowLimitSpin_->hasFocus()) {
-        lowLimitSpin_->setValue(system_.lowLimit());
+    const double temp = system_.currentTemperature();
+    const QString status = QString::fromStdString(system_.currentStatus());
+
+    if (std::isfinite(temp)) {
+        currentTempLabel_->setText(QString("Current Temperature: %1 °C").arg(temp, 0, 'f', 2));
+    } else {
+        currentTempLabel_->setText("Current Temperature: --");
     }
-    if (!highLimitSpin_->hasFocus()) {
-        highLimitSpin_->setValue(system_.highLimit());
-    }
+
+    currentStatusLabel_->setText(QString("Status: %1").arg(status));
 }

@@ -137,6 +137,24 @@ void GimbalService::panRight() {
     setPwm(kPanChannel, curPan_);
 }
 
+void GimbalService::setTiltPosition(int pulse) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!initialized_) {
+        throw std::runtime_error("GimbalService not initialized");
+    }
+    curTilt_ = std::clamp(pulse, kServoMin, kServoMax);
+    setPwm(kTiltChannel, curTilt_);
+}
+
+void GimbalService::setPanPosition(int pulse) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!initialized_) {
+        throw std::runtime_error("GimbalService not initialized");
+    }
+    curPan_ = std::clamp(pulse, kServoMin, kServoMax);
+    setPwm(kPanChannel, curPan_);
+}
+
 int GimbalService::currentTilt() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return curTilt_;

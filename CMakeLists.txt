@@ -16,6 +16,7 @@ find_package(OpenCV REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Widgets Test)
 
 pkg_check_modules(GPIOD REQUIRED libgpiod)
+pkg_check_modules(GPIODCXX REQUIRED libgpiodcxx)
 pkg_check_modules(LIRC REQUIRED lirc)
 
 include_directories(
@@ -23,10 +24,12 @@ include_directories(
     tests
     ${OpenCV_INCLUDE_DIRS}
     ${GPIOD_INCLUDE_DIRS}
+    ${GPIODCXX_INCLUDE_DIRS}
     ${LIRC_INCLUDE_DIRS}
 )
 
 add_library(car_logic STATIC
+    src/autonomy/AutoTrackService.cpp
     src/motion/MotionController.cpp
     src/rt/MotionCommandService.cpp
     src/motor/GpiodMotorDriver.cpp
@@ -36,12 +39,14 @@ add_library(car_logic STATIC
     src/ir/IrRemote.cpp
     src/gui/SystemFacade.cpp
     src/gui/MainWindow.cpp
+    include/autonomy/AutoTrackService.hpp
     include/gui/MainWindow.hpp
 )
 
 target_link_libraries(car_logic PRIVATE
     ${OpenCV_LIBS}
     ${GPIOD_LIBRARIES}
+    ${GPIODCXX_LIBRARIES}
     ${LIRC_LIBRARIES}
     Qt5::Widgets
     pthread
