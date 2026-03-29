@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QComboBox>
 #include <QLabel>
 #include <QMainWindow>
 #include <QPushButton>
@@ -19,6 +20,7 @@ public:
 
 private slots:
     void applyTemperatureLimits();
+    void applyModeSelection();
 
 private:
     void setupUi();
@@ -26,10 +28,14 @@ private:
     void refreshUi();
     void updateCameraView();
     void updateTemperatureView();
+    void updateModeView();
 
     SystemFacade system_;
 
     QLabel* cameraLabel_{nullptr};
+
+    QComboBox* modeCombo_{nullptr};
+    QLabel* modeStatusLabel_{nullptr};
 
     QPushButton* forwardBtn_{nullptr};
     QPushButton* backwardBtn_{nullptr};

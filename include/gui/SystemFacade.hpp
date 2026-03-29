@@ -1,5 +1,6 @@
 #pragma once
 
+#include "autonomy/AutoTrackService.hpp"
 #include "dds/LocalDdsBus.hpp"
 #include "dds/VehicleTopics.hpp"
 #include "gimbal/GimbalCommandService.hpp"
@@ -25,6 +26,11 @@
  */
 class SystemFacade {
 public:
+    enum class ControlMode {
+        Tracking,
+        Manual
+    };
+
     SystemFacade();
     ~SystemFacade();
 
@@ -33,6 +39,9 @@ public:
 
     bool start();
     void stop();
+
+    void setMode(ControlMode mode);
+    [[nodiscard]] ControlMode mode() const noexcept { return mode_; }
 
     void moveForward();
     void moveBackward();
@@ -73,5 +82,7 @@ private:
     GimbalService gimbal_;
     GimbalCommandService gimbalService_;
     IrRemote irRemote_;
+    AutoTrackService autoTrack_;
     bool started_{false};
+    ControlMode mode_{ControlMode::Manual};
 };

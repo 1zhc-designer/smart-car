@@ -12,15 +12,11 @@ struct gpiod_line_request;
 /**
  * @brief Temperature and alarm monitor using i2c-dev and libgpiod v2.
  *
- * Logic is aligned with the validated reference implementation:
- * - LED and buzzer are active-low.
- * - Low temperature  -> yellow (red + green) + slow beeps.
- * - High temperature -> red + fast beeps.
- * - Normal           -> green.
+ * GPIO outputs use libgpiod.
+ * PCF8591 ADC is read directly through /dev/i2c-1.
  *
- * PCF8591 channels are read via /dev/i2c-1.
- * GPIO outputs are driven via libgpiod v2.
- * The worker thread blocks in epoll_wait() on timerfd/eventfd.
+ * GUI is the only path allowed to update temperature limits.
+ * Joystick-based threshold adjustment is intentionally disabled.
  */
 class MonitorService {
 public:
@@ -51,8 +47,7 @@ private:
     void closeResources();
 
     unsigned char readPcf8591Channel(int channel);
-    unsigned char readJoystick();
-    double readNtcTemperature();
+    bool tryReadNtcTemperature(double& temp);
 
     void writePhysicalLevel(int offset, bool high);
     void setLedRed(bool on);
@@ -70,6 +65,8 @@ private:
 
     mutable std::mutex stateMutex_;
     double currentTemperature_{0.0};
+    double lastValidTemperature_{0.0};
+    bool hasValidTemperature_{false};
     std::string currentStatus_{"Initializing"};
     StatusCallback statusCallback_;
 

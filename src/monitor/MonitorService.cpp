@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -96,8 +97,8 @@ void MonitorService::setLimits(int low, int high) {
     if (low >= high) {
         return;
     }
-    lowLimit_.store(low);
-    highLimit_.store(high);
+    lowLimit_.store(low, std::memory_order_release);
+    highLimit_.store(high, std::memory_order_release);
 }
 
 void MonitorService::setStatusCallback(StatusCallback cb) {
@@ -194,6 +195,10 @@ void MonitorService::ensureI2cReady() {
     if (::ioctl(i2cFd_, I2C_SLAVE, kPcf8591Address) < 0) {
         throw std::runtime_error("Failed to select PCF8591 I2C address");
     }
+
+    // Warm up channel 3 once so the first real sample is not stale.
+    (void)readPcf8591Channel(3);
+    ::usleep(2000);
 }
 
 void MonitorService::closeResources() {
@@ -225,9 +230,9 @@ void MonitorService::writePhysicalLevel(int offset, bool high) {
     );
 }
 
-/* LED follows the actual working behavior of monitor(2).cpp:
-   true  -> HIGH
-   false -> LOW
+/*
+   Keep the same behavior as your validated monitor logic:
+   setLedRed(true) / setLedGreen(true) means "drive line high".
 */
 void MonitorService::setLedRed(bool on) {
     writePhysicalLevel(kLedR, on);
@@ -237,7 +242,8 @@ void MonitorService::setLedGreen(bool on) {
     writePhysicalLevel(kLedG, on);
 }
 
-/* Buzzer is LOW-active:
+/*
+   Buzzer is LOW-active:
    on  -> LOW
    off -> HIGH
 */
@@ -247,61 +253,72 @@ void MonitorService::setBuzzer(bool on) {
 
 unsigned char MonitorService::readPcf8591Channel(int channel) {
     const unsigned char control = static_cast<unsigned char>(0x40 | (channel & 0x03));
+
     if (::write(i2cFd_, &control, 1) != 1) {
         throw std::runtime_error("PCF8591 control write failed");
     }
 
-    unsigned char discard = 0;
-    unsigned char value = 0;
+    ::usleep(2000);
 
-    if (::read(i2cFd_, &discard, 1) != 1) {
-        throw std::runtime_error("PCF8591 dummy read failed");
+    // First byte after channel switch is stale.
+    unsigned char stale = 0;
+    if (::read(i2cFd_, &stale, 1) != 1) {
+        throw std::runtime_error("PCF8591 stale read failed");
     }
 
-    if (::read(i2cFd_, &value, 1) != 1) {
-        throw std::runtime_error("PCF8591 value read failed");
+    int sum = 0;
+    constexpr int kSamples = 4;
+
+    for (int i = 0; i < kSamples; ++i) {
+        unsigned char value = 0;
+        if (::read(i2cFd_, &value, 1) != 1) {
+            throw std::runtime_error("PCF8591 value read failed");
+        }
+        sum += static_cast<int>(value);
+        ::usleep(1000);
     }
 
-    return value;
+    return static_cast<unsigned char>(sum / kSamples);
 }
 
-unsigned char MonitorService::readJoystick() {
-    const unsigned char y = readPcf8591Channel(0);
-    const unsigned char x = readPcf8591Channel(1);
-    const unsigned char sw = readPcf8591Channel(2);
-
-    unsigned char js = 0;
-
-    if (x >= 250) js = 2;
-    if (x <= 5)   js = 1;
-    if (y >= 250) js = 4;
-    if (y <= 5)   js = 3;
-
-    if (std::abs(static_cast<int>(x) - 127) < 30 &&
-        std::abs(static_cast<int>(y) - 127) < 30 &&
-        sw > 127) {
-        js = 0;
-    }
-
-    return js;
-}
-
-double MonitorService::readNtcTemperature() {
+bool MonitorService::tryReadNtcTemperature(double& temp) {
     constexpr double Vref = 5.0;
     constexpr double R0 = 10000.0;
     constexpr double B = 3950.0;
     constexpr double T0 = 298.15;
     constexpr double Rser = 10000.0;
 
-    const unsigned char adc = readPcf8591Channel(3);
+    int validCount = 0;
+    double sumTemp = 0.0;
 
-    double vr = Vref * static_cast<double>(adc) / 255.0;
-    vr = std::clamp(vr, 0.000001, Vref - 0.000001);
+    for (int i = 0; i < 5; ++i) {
+        const unsigned char adc = readPcf8591Channel(3);
 
-    const double rt = Rser * vr / (Vref - vr);
-    const double tk = 1.0 / ((std::log(rt / R0) / B) + (1.0 / T0));
+        double vr = Vref * static_cast<double>(adc) / 255.0;
+        vr = std::clamp(vr, 0.000001, Vref - 0.000001);
 
-    return tk - 273.15;
+        const double rt = Rser * vr / (Vref - vr);
+        const double tk = 1.0 / ((std::log(rt / R0) / B) + (1.0 / T0));
+        const double oneTemp = tk - 273.15;
+
+        if (!std::isfinite(oneTemp) || oneTemp < -80.0 || oneTemp > 150.0) {
+            ::usleep(1000);
+            continue;
+        }
+
+        sumTemp += oneTemp;
+        ++validCount;
+        ::usleep(1000);
+    }
+
+    if (validCount == 0) {
+        return false;
+    }
+
+    temp = sumTemp / static_cast<double>(validCount);
+    lastValidTemperature_ = temp;
+    hasValidTemperature_ = true;
+    return true;
 }
 
 void MonitorService::updateUiState(double temp, const std::string& status) {
@@ -398,27 +415,30 @@ void MonitorService::runLoop() {
 
             switch (phase) {
             case Phase::Sample: {
-                int low = lowLimit_.load();
-                int high = highLimit_.load();
+                const int low = lowLimit_.load(std::memory_order_acquire);
+                const int high = highLimit_.load(std::memory_order_acquire);
 
-                const unsigned char joy = readJoystick();
-                switch (joy) {
-                case 1: --low;  break;
-                case 2: ++low;  break;
-                case 3: ++high; break;
-                case 4: --high; break;
-                default: break;
+                double temp = std::numeric_limits<double>::quiet_NaN();
+                if (!tryReadNtcTemperature(temp)) {
+                    if (hasValidTemperature_) {
+                        temp = lastValidTemperature_;
+                        setLedRed(false);
+                        setLedGreen(true);
+                        setBuzzer(false);
+                        updateUiState(temp, "Sensor Read Retry");
+                    } else {
+                        setLedRed(false);
+                        setLedGreen(false);
+                        setBuzzer(false);
+                        updateUiState(std::numeric_limits<double>::quiet_NaN(), "Sensor Invalid");
+                    }
+
+                    phase = Phase::Gap;
+                    setTimerOnce(timerFd_, 200);
+                    break;
                 }
 
-                if (low < high) {
-                    lowLimit_.store(low);
-                    highLimit_.store(high);
-                }
-
-                const double temp = readNtcTemperature();
-
-                if (temp < lowLimit_.load()) {
-                    // same logic as monitor(2).cpp
+                if (temp < low) {
                     setLedRed(true);
                     setLedGreen(true);
                     updateUiState(temp, "Too Cold");
@@ -428,8 +448,7 @@ void MonitorService::runLoop() {
                     setBuzzer(true);
                     phase = Phase::BeepOn;
                     setTimerOnce(timerFd_, beepMs);
-                } else if (temp >= highLimit_.load()) {
-                    // same logic as monitor(2).cpp
+                } else if (temp >= high) {
                     setLedRed(true);
                     setLedGreen(false);
                     updateUiState(temp, "Too Hot");
@@ -440,7 +459,6 @@ void MonitorService::runLoop() {
                     phase = Phase::BeepOn;
                     setTimerOnce(timerFd_, beepMs);
                 } else {
-                    // same logic as monitor(2).cpp
                     setLedRed(false);
                     setLedGreen(true);
                     setBuzzer(false);
