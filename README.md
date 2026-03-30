@@ -484,7 +484,6 @@ Recommended logical module grouping inside `src/` / `include/`:
 This structure supports modular development and makes it easier to extend the platform from a prototype into a more complete greenhouse inspection system.
 
 ---
-
 ## Build and Run
 
 This project uses **CMake** as the build system.
@@ -496,3 +495,9 @@ cd smartcar
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
+```
+
+### Notes
+- `cmake ..` configures the project from the root `CMakeLists.txt`.
+- `make -j$(nproc)` compiles the project in parallel using all available processor cores.
+- Ensure that required dependencies such as **Qt5**, **OpenCV**, **libgpiod v2**, **LIRC**, and Linux **i2c-dev** support are installed before building.
