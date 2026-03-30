@@ -1,5 +1,4 @@
-# smart-car
-## A Non-Contact Intelligent Inspection and Micro-Environment Intervention Platform for Strawberry Greenhouses
+# A Non-Contact Intelligent Inspection and Micro-Environment Intervention Platform for Strawberry Greenhouses
 
 <p align="center">
   <img src="images/logo.jpg" width="600">
