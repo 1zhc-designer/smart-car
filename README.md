@@ -502,3 +502,76 @@ make -j$(nproc)
 - `make -j$(nproc)` compiles the project in parallel using all available processor cores.
 - Ensure that required dependencies such as **Qt5**, **OpenCV**, **libgpiod v2**, **LIRC**, and Linux **i2c-dev** support are installed before building.
 ```
+---
+
+## User Case UML / Sequence Diagram
+
+This section describes the main user cases and the corresponding sequence of interactions between the operator and the platform subsystems. The diagrams clarify responsibilities across sensing, motion, vision, logging, alerts, and manual review.
+
+### Main User Cases
+
+- **Start Patrol Mission**  
+  Actor: Operator  
+  Goal: Start an inspection mission and collect environmental data and images automatically.
+
+- **Manual Inspection and Close-Up Review**  
+  Actor: Operator  
+  Goal: Teleoperate the platform to a target plant and inspect fruit or leaves without direct contact.
+
+- **Alert Event Handling**  
+  Actor: Platform (system) + Operator  
+  Goal: Detect abnormal environmental or visual conditions, capture evidence, and notify the operator.
+
+- **End Mission and Export Report**  
+  Actor: Operator  
+  Goal: Stop the mission, review results, and export logs and images for record keeping.
+
+### Sequence Diagram — Patrol Mission (UC-1)
+
+Participants: Operator, GUI, MissionManager, SensorManager, AlertManager, VisionModule, DataLogger, MotorControl, ObstacleSensor (optional)
+
+Sequence:
+- Operator → GUI: Select Patrol Mode and press Start.
+- GUI → MissionManager: `startMission(patrol)`
+- MissionManager → SelfCheck: battery / sensor / camera status verification
+- MissionManager → MotorControl: `beginPatrol()`
+- Loop (while patrol is running):
+  - SensorManager → DataLogger: `log(sensor_readings, timestamp, location)`
+  - SensorManager → AlertManager: `evaluate(readings)`
+  - VisionModule → DataLogger: `log(image_path, timestamp, location)`
+  - AlertManager → MissionManager: if abnormal → `triggerEvent(alertType)`
+  - MissionManager → VisionModule: `captureImage(eventTag)`
+  - ObstacleSensor → Navigation / MotorControl: if obstacle → `stop()` / `wait()` / `reroute()`
+- Operator → GUI: Review alert / take over manually if necessary
+- Operator → GUI: Press Stop (or route ends)
+- GUI → MissionManager: `stopMission()`
+- MissionManager → DataLogger: `finalizeMission()`
+- DataLogger → ReportGenerator: `generateSummary()`
+- GUI → Operator: Display summary and provide export
+
+---
+
+## Circuit / Wiring Diagram
+
+This section summarizes how sensing, control, actuation, warning modules, and camera interfaces are wired to the Raspberry Pi and motor-control hardware.
+
+<p align="center">
+  <img src="images/gpio_wiring_table.png" width="900"><br>
+  <em>Figure 4. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
+</p>
+
+### Wiring Notes
+
+- **Buzzer** → GPIO17
+- **Red LED** → GPIO20
+- **Green LED** → GPIO21
+- **Left Motor PWMA** → GPIO18
+- **Left Motor AIN1** → GPIO22
+- **Left Motor AIN2** → GPIO27
+- **Right Motor PWMB** → GPIO13
+- **Right Motor BIN1** → GPIO25
+- **Right Motor BIN2** → GPIO24
+- **Left Line Tracking Sensor** → GPIO23
+- **Right Line Tracking Sensor** → GPIO26
+- **Left Obstacle Sensor** → GPIO16
+- **Right Obstacle Sensor** → GPIO12
