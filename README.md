@@ -552,21 +552,3 @@ This section summarizes how sensing, control, actuation, warning modules, and ca
   <img src="images/gpio_wiring_table.png" width="900"><br>
   <em>Figure 4. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
 </p>
-
-### Wiring Notes
-
-- **Buzzer** → GPIO17
-- **Red LED** → GPIO20
-- **Green LED** → GPIO21
-- **Left Motor PWMA** → GPIO18
-- **Left Motor AIN1** → GPIO22
-- **Left Motor AIN2** → GPIO27
-- **Right Motor PWMB** → GPIO13
-- **Right Motor BIN1** → GPIO25
-- **Right Motor BIN2** → GPIO24
-- **Left Line Tracking Sensor** → GPIO23
-- **Right Line Tracking Sensor** → GPIO26
-- **Left Obstacle Sensor** → GPIO16
-- **Right Obstacle Sensor** → GPIO12
-
----
