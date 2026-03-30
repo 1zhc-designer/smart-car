@@ -219,7 +219,7 @@ This section lists the main hardware modules used to implement the non-contact s
 Acts as the main controller for sensing, image capture, logging, GUI interaction, and higher-level task coordination.
 
 #### **Motor Expansion Board**
-[Schematic PDF](schematics/motor_expansion_board_schematic_v3.pdf)
+[Schematic PDF](images/motor_expansion_board_schematic_v3.pdf)
 
 Provides motor-driving capability for platform movement and low-level motion control.
 
