@@ -575,3 +575,5 @@ This section summarizes how sensing, control, actuation, warning modules, and ca
 - **Right Line Tracking Sensor** → GPIO26
 - **Left Obstacle Sensor** → GPIO16
 - **Right Obstacle Sensor** → GPIO12
+
+---
