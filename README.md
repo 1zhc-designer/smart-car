@@ -496,12 +496,6 @@ mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
 ```
-
-### Notes
-- `cmake ..` configures the project from the root `CMakeLists.txt`.
-- `make -j$(nproc)` compiles the project in parallel using all available processor cores.
-- Ensure that required dependencies such as **Qt5**, **OpenCV**, **libgpiod v2**, **LIRC**, and Linux **i2c-dev** support are installed before building.
-```
 ---
 
 ## User Case UML / Sequence Diagram
