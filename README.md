@@ -552,3 +552,6 @@ This section summarizes how sensing, control, actuation, warning modules, and ca
   <img src="images/gpio_wiring_table.png" width="900"><br>
   <em>Figure 4. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
 </p>
+
+## Last Updated
+2026-03-31
