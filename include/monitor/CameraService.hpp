@@ -45,6 +45,7 @@ struct CameraDetections {
 class CameraService {
 public:
     using DetectionCallback = std::function<void(const CameraDetections&)>;
+    using FrameCallback = std::function<void()>;
 
     explicit CameraService(int cameraIndex = 0,
                            const std::string& savePath = "./captures",
@@ -66,6 +67,7 @@ public:
 
     [[nodiscard]] cv::Mat latestFrame() const;
     void setDetectionCallback(DetectionCallback callback);
+    void setFrameCallback(FrameCallback callback);
     [[nodiscard]] std::optional<CameraDetections> latestDetections() const;
 
 private:
@@ -75,6 +77,7 @@ private:
     void updateLatestFrame(const cv::Mat& frame);
     void publishDetections(const CameraDetections& detections);
     void clearLatestDetections();
+    void notifyFrameReady();
 
 private:
     int cameraIndex_{0};
@@ -92,6 +95,7 @@ private:
 
     mutable std::mutex callbackMutex_;
     DetectionCallback detectionCallback_{};
+    FrameCallback frameCallback_{};
 
     std::thread worker_{};
 };

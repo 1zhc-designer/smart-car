@@ -428,6 +428,11 @@ void CameraService::setDetectionCallback(DetectionCallback callback) {
     detectionCallback_ = std::move(callback);
 }
 
+void CameraService::setFrameCallback(FrameCallback callback) {
+    std::lock_guard<std::mutex> lock(callbackMutex_);
+    frameCallback_ = std::move(callback);
+}
+
 std::optional<CameraDetections> CameraService::latestDetections() const {
     std::lock_guard<std::mutex> lock(detectionMutex_);
     return latestDetections_;
@@ -466,6 +471,19 @@ void CameraService::publishDetections(const CameraDetections& detections) {
 void CameraService::clearLatestDetections() {
     std::lock_guard<std::mutex> lock(detectionMutex_);
     latestDetections_.reset();
+}
+
+void CameraService::notifyFrameReady() {
+    FrameCallback callbackCopy;
+
+    {
+        std::lock_guard<std::mutex> lock(callbackMutex_);
+        callbackCopy = frameCallback_;
+    }
+
+    if (callbackCopy) {
+        callbackCopy();
+    }
 }
 
 void CameraService::start() {
@@ -556,6 +574,7 @@ void CameraService::runLoop() {
         }
 
         updateLatestFrame(frame);
+        notifyFrameReady();
 
         if (previewEnabled()) {
             cv::imshow(kWindowName, frame);

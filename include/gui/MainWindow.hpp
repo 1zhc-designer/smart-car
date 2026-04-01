@@ -1,10 +1,10 @@
 #pragma once
 
+#include <QComboBox>
 #include <QLabel>
 #include <QMainWindow>
 #include <QPushButton>
 #include <QSpinBox>
-#include <QTimer>
 
 #include "gui/SystemFacade.hpp"
 
@@ -19,18 +19,23 @@ public:
     ~MainWindow() override;
 
 private slots:
-    void refreshUi();
     void applyTemperatureLimits();
+    void applyModeSelection();
 
 private:
     void setupUi();
     void connectSignals();
+    void refreshUi();
     void updateCameraView();
     void updateTemperatureView();
+    void updateModeView();
 
     SystemFacade system_;
 
     QLabel* cameraLabel_{nullptr};
+
+    QComboBox* modeCombo_{nullptr};
+    QLabel* modeStatusLabel_{nullptr};
 
     QPushButton* forwardBtn_{nullptr};
     QPushButton* backwardBtn_{nullptr};
@@ -49,6 +54,4 @@ private:
     QSpinBox* lowLimitSpin_{nullptr};
     QSpinBox* highLimitSpin_{nullptr};
     QPushButton* applyLimitsBtn_{nullptr};
-
-    QTimer* refreshTimer_{nullptr};
 };
