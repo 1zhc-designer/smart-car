@@ -1,21 +1,16 @@
 #include "gui/SystemFacade.hpp"
 
-#include <iostream>
-
 const std::chrono::milliseconds SystemFacade::kContinuous =
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::hours(24));
-const std::chrono::milliseconds SystemFacade::kStopDuration{10};
+
+const std::chrono::milliseconds SystemFacade::kStopDur{10};
 
 SystemFacade::SystemFacade()
     : driver_({.PWMA = 18, .AIN1 = 22, .AIN2 = 27,
-               .PWMB = 23, .BIN1 = 25, .BIN2 = 24},
-              100),
-      motionController_(driver_),
-      motionService_(bus_, motionController_),
-      camera_(0, "./captures", false),
-      gimbalService_(bus_, gimbal_),
-      irRemote_(bus_),
-      autoTrack_(bus_, gimbal_) {}
+               .PWMB = 23, .BIN1 = 25, .BIN2 = 24}, 100),
+      motion_(driver_),
+      sched_(motion_),
+      camera_(0, "./captures", false) {}
 
 SystemFacade::~SystemFacade() {
     stop();
@@ -27,14 +22,11 @@ bool SystemFacade::start() {
     }
 
     gimbal_.init();
-    gimbalService_.start();
-    motionService_.start();
+    sched_.start();
     monitor_.start();
     camera_.start();
-    started_ = true;
 
-    mode_ = ControlMode::Manual;
-    irRemote_.start();
+    started_ = true;
     return true;
 }
 
@@ -43,128 +35,58 @@ void SystemFacade::stop() {
         return;
     }
 
-    autoTrack_.stop();
-    irRemote_.stop();
     camera_.stop();
     monitor_.stop();
-    motionService_.stop();
-    gimbalService_.stop();
+    sched_.stop();
     started_ = false;
 }
 
-void SystemFacade::setMode(ControlMode mode) {
-    if (!started_) {
-        mode_ = mode;
-        return;
-    }
-
-    if (mode_ == mode) {
-        return;
-    }
-
-    stopMotion();
-
-    try {
-        if (mode == ControlMode::Tracking) {
-            irRemote_.stop();
-            autoTrack_.start();
-            mode_ = ControlMode::Tracking;
-        } else {
-            autoTrack_.stop();
-            gimbal_.reset();
-            irRemote_.start();
-            mode_ = ControlMode::Manual;
-        }
-    } catch (const std::exception& e) {
-        std::cerr << "Failed to switch mode: " << e.what() << std::endl;
-
-        autoTrack_.stop();
-        try {
-            gimbal_.reset();
-        } catch (...) {
-        }
-        irRemote_.start();
-        mode_ = ControlMode::Manual;
-    }
-}
-
-void SystemFacade::publishMotion(Motion motion, int speed, std::chrono::milliseconds duration, const std::string& source) {
-    bus_.publish(MotionCommandTopic{motion, speed, duration, source});
-}
-
-void SystemFacade::publishGimbal(GimbalCommand command, const std::string& source) {
-    bus_.publish(GimbalCommandTopic{command, source});
-}
-
 void SystemFacade::moveForward() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishMotion(Motion::Up, kSpeedForward, kContinuous, "gui");
+    sched_.replaceNow({Motion::Up, kSpeedForward, kContinuous});
 }
 
 void SystemFacade::moveBackward() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishMotion(Motion::Down, kSpeedForward, kContinuous, "gui");
+    sched_.replaceNow({Motion::Down, kSpeedForward, kContinuous});
 }
 
 void SystemFacade::turnLeft() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishMotion(Motion::Left, kSpeedTurn, kContinuous, "gui");
+    sched_.replaceNow({Motion::Left, kSpeedTurn, kContinuous});
 }
 
 void SystemFacade::turnRight() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishMotion(Motion::Right, kSpeedTurn, kContinuous, "gui");
+    sched_.replaceNow({Motion::Right, kSpeedTurn, kContinuous});
 }
 
 void SystemFacade::stopMotion() {
-    publishMotion(Motion::Stop, 0, kStopDuration, "gui");
+    sched_.replaceNow({Motion::Stop, 0, kStopDur});
 }
 
 void SystemFacade::gimbalUp() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishGimbal(GimbalCommand::TiltUp, "gui");
+    gimbal_.tiltUp();
 }
 
 void SystemFacade::gimbalDown() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishGimbal(GimbalCommand::TiltDown, "gui");
+    gimbal_.tiltDown();
 }
 
 void SystemFacade::gimbalLeft() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishGimbal(GimbalCommand::PanLeft, "gui");
+    gimbal_.panLeft();
 }
 
 void SystemFacade::gimbalRight() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishGimbal(GimbalCommand::PanRight, "gui");
+    gimbal_.panRight();
 }
 
 void SystemFacade::gimbalReset() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
-    publishGimbal(GimbalCommand::Reset, "gui");
+    gimbal_.reset();
 }
 
 double SystemFacade::currentTemperature() const {
     return monitor_.currentTemperature();
+}
+
+int SystemFacade::currentLightLevel() const {
+    return monitor_.currentLightLevel();
 }
 
 std::string SystemFacade::currentStatus() const {
@@ -185,8 +107,4 @@ void SystemFacade::setTemperatureLimits(int low, int high) {
 
 cv::Mat SystemFacade::latestFrame() const {
     return camera_.latestFrame();
-}
-
-void SystemFacade::setFrameCallback(CameraService::FrameCallback callback) {
-    camera_.setFrameCallback(std::move(callback));
 }
