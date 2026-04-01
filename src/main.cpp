@@ -1,53 +1,24 @@
-#include "motor/GpiodMotorDriver.hpp"
-#include "motion/MotionController.hpp"
-#include "rt/Scheduler.hpp"
-#include "ir/IrRemote.hpp"
-#include "monitor/MonitorService.hpp"
-#include "monitor/CameraService.hpp"
-#include "gimbal/GimbalService.hpp"
+#include "gui/SystemFacade.hpp"
 
 #include <iostream>
 
 /**
- * @brief Command-line entry point for the smart car.
- * @return 0 on success, non-zero on failure.
+ * @brief Command-line entry point for the smart car runtime.
  */
 int main() {
     try {
-        GpiodMotorDriver::Pins pins{
-            .PWMA = 18, .AIN1 = 22, .AIN2 = 27,
-            .PWMB = 23, .BIN1 = 25, .BIN2 = 24
-        };
+        SystemFacade system;
+        system.start();
 
-        GpiodMotorDriver driver(pins, 100);
-        MotionController motion(driver);
-        Scheduler sched(motion);
-
-        GimbalService gimbal;
-        gimbal.init();
-
-        sched.start();
-
-        IrRemote remote(sched, gimbal);
-        remote.start();
-
-        MonitorService monitor;
-        monitor.start();
-
-        CameraService camera(0, "./captures");
-        camera.start();
-
-        std::cout << "IR motion + IR gimbal + Temperature monitor + Camera monitor enabled.\n";
-        std::cout << "Press Enter to exit the whole program...\n";
+        std::cout << "DDS-style smart car runtime started.\n";
+        std::cout << "GUI commands and IR commands share the same pub/sub control path.\n";
+        std::cout << "Press Enter to stop the program...\n";
         std::cin.get();
 
-        camera.stop();
-        monitor.stop();
-        remote.stop();
-        sched.stop();
+        system.stop();
         return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "Fatal: " << e.what() << "\n";
+    } catch (const std::exception& exception) {
+        std::cerr << "Fatal: " << exception.what() << "\n";
         return 1;
     }
 }
