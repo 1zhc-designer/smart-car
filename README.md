@@ -238,9 +238,6 @@ Provides analog-to-digital conversion for analog sensor input and enables flexib
 
 Used for audible alerts during abnormal conditions or fault events.
 
-#### **Joystick Module**
-
-Supports manual interaction and debugging during teleoperation or bench testing.
 
 #### **RGB LED Module**
 
@@ -271,105 +268,143 @@ Used for temporary wiring, testing, and modular integration during development.
 Used for battery or power monitoring to support low-voltage warning and safer operation.
 
 ---
+---
 
-## System Functional Requirements
+## System Functions
 
-The platform shall provide functional capabilities that support non-contact strawberry inspection, local environmental monitoring, abnormal-condition warning, and practical operator review in greenhouse patrol scenarios.
+The Raspberry Pi smart car platform implements a local inspection and control system for greenhouse-style strawberry monitoring tasks. Based on the current codebase, the system already supports manual control, automatic line-tracking, camera-based visual inspection, onboard temperature monitoring, warning indication, and a Qt-based user interface.
 
-### Environmental Sensing
-- The system shall measure temperature, humidity, and light intensity at configurable intervals (time-based or distance-based).
-- The system shall support sensor calibration offsets and basic filtering (e.g., moving average) to reduce noise.
-- The system shall detect invalid readings (out-of-range or disconnected sensor) and log a fault event.
+### Software Architecture
+<p align="center">
+  <img src="images/system_architecture.png" alt="System Software Architecture" width="700"/>
+</p>
 
-### Visual Inspection (Camera)
-- The system shall capture still images of plants at configurable intervals and store them with timestamps.
-- The system shall support event-triggered image capture, for example when an environmental parameter exceeds a threshold.
-- The system shall allow the operator to manually trigger image capture during teleoperation.
-- The system shall support basic color-based recognition for fruit maturity and leaf abnormality screening.
+The software is organized as a layered architecture built around a DDS-style publish/subscribe control path. At the top level, the operator interacts with the platform through the Qt GUI and infrared remote control. In the middle layer, command and status flow through the DDS message bus. At the lower layer, runtime services access the camera, gimbal, motor driver, line sensors, obstacle sensors, and temperature-monitoring hardware.
 
-### Patrol and Movement
-- The system shall provide a manual control mode (teleoperation) for testing and targeted inspection.
-- The system shall provide a patrol mode that moves along greenhouse aisles and stops at sampling points.
-- The system shall implement basic obstacle handling: stop, wait, and/or reroute depending on available sensors.
-- The system shall support line-following behavior for structured greenhouse patrol paths.
+ At the top level, the operator interacts with the platform through the Qt GUI and infrared remote control. In the middle layer, command and status flow through the DDS message bus. At the lower layer, runtime services access the camera, gimbal, motor driver, line sensors, obstacle sensors, and temperature-monitoring hardware.
 
-### Data Logging and Reporting
-- The system shall log sensor readings and mission metadata into a local file or database (e.g., CSV or SQLite).
-- The system shall store captured images with consistent naming (timestamp plus optional location tag).
-- The system shall generate a mission summary including min/avg/max values, alert counts, and image references.
-- The system shall support traceable review of inspection records through logged data and visual outputs.
+### Control and Operator Interface
 
-### Alerts and Thresholds
-- The system shall support configurable threshold-based alerts for temperature, humidity, and light.
-- The system shall support trend-based alerts (e.g., temperature rising continuously for N minutes).
-- The system shall record all alerts with timestamps and associated sensor values.
-- The system shall trigger audible and/or visual warning signals when abnormal conditions are detected.
+- The system provides a Qt-based graphical user interface for live operation.
+- The GUI supports:
+  - motion control: forward, backward, left, right, and stop
+  - gimbal control: up, down, left, right, and reset
+  - mode switching between **Manual Mode** and **Tracking Mode**
+  - live camera display
+  - current temperature display
+  - current monitoring status display
+  - editable lower and upper temperature thresholds
+- The system also supports infrared remote control for motion and gimbal commands during manual operation.
 
-### Safety and Fail-Safe Behavior
-- The system shall include an emergency stop function (hardware button or software command).
-- The platform shall automatically stop the motors when critical faults occur (sensor failure, low battery, or loss of control signal).
-- The system shall monitor battery voltage and provide a low-battery warning and safe stop/return behavior.
+### Motion and Vehicle Control
 
-### Usability
-- The system shall provide a simple workflow: start mission → monitor status → review logs/images → export report.
-- The system shall provide clear status indication (LED, buzzer, or on-screen messages) for states such as running, alert, and error.
-- The system shall support GUI-based monitoring and operator takeover for suspicious cases.
+- The system supports the basic motion primitives:
+  - forward
+  - backward
+  - left turn
+  - right turn
+  - stop
+- Motion commands are published through a shared DDS-style command path.
+- A motion command service receives and executes the commands with duration control.
+- The motion controller converts high-level motion commands into left and right motor actions.
+- The GPIO motor driver performs low-level motor actuation using direction control and software PWM.
+
+### Gimbal Control
+
+- The system supports pan-tilt camera control through a PCA9685-based servo driver.
+- The implemented gimbal functions include:
+  - tilt up
+  - tilt down
+  - pan left
+  - pan right
+  - reset to center
+- Gimbal commands can be issued from both the GUI and the IR remote.
+
+### Automatic Tracking Function
+
+- The system provides an automatic tracking mode based on line sensors and obstacle sensors.
+- In tracking mode:
+  - the vehicle moves forward when the path is correctly detected
+  - the vehicle steers left or right according to line-sensor states
+  - the vehicle stops when the line is lost
+- If an obstacle is detected:
+  - the vehicle immediately stops
+  - tracking motion is suspended until the obstacle condition is cleared
+  - the gimbal is returned toward the center position
+- The auto-tracking service runs independently from manual teleoperation and is coordinated by the system facade.
+
+### Camera and Visual Inspection
+
+- The system captures live frames from the onboard camera.
+- The camera service performs rule-based image processing using OpenCV.
+- The implemented visual functions include:
+  - fruit detection using HSV color segmentation and contour filtering
+  - leaf detection using contour extraction
+  - leaf-condition screening based on color-ratio analysis
+- Leaves are classified into:
+  - **Normal**
+  - **Suspicious**
+  - **Abnormal**
+- The processed frame is annotated and displayed in the GUI for operator review.
+- The system saves captured inspection images locally when significant detection results are present, such as fruit targets or abnormal leaves.
+
+### Environmental Monitoring and Warning
+
+- The system currently implements **temperature monitoring** using an NTC sensor through the PCF8591 ADC.
+- The monitoring service reads and filters temperature samples before updating the runtime state.
+- The operator can set lower and upper temperature thresholds from the GUI.
+- The system provides local warning outputs through:
+  - LEDs
+  - buzzer
+- The GUI shows both the current temperature and the current monitoring status in real time.
+
+### System Coordination
+
+- The main runtime is coordinated through `SystemFacade`.
+- This layer is responsible for starting, stopping, and switching between the major subsystems:
+  - motion service
+  - gimbal service
+  - monitor service
+  - camera service
+  - IR service
+  - auto-tracking service
+- The project provides both:
+  - a command-line runtime entry
+  - a Qt GUI entry
+
+### Implemented Scope in the Current Version
+
+The current version already implements the following practical system functions:
+
+- manual teleoperation
+- infrared remote control
+- GUI-based operation
+- line-following style automatic tracking
+- obstacle-triggered stop behavior
+- motor actuation through GPIO
+- pan-tilt gimbal control
+- camera-based fruit detection
+- camera-based leaf abnormality screening
+- temperature monitoring
+- local LED and buzzer warning
+- local image capture and storage
+
+### Functions Not Yet Implemented in the Current Codebase
+
+The following ideas are useful future extensions, but they are not fully implemented in the current code version:
+
+- humidity sensing
+- light sensing
+- structured multi-point patrol with checkpoint tagging
+- CSV / SQLite mission logging
+- automatic mission summary generation
+- low-battery monitoring
+- remote web dashboard
+- closed-loop environmental actuation
+- reroute logic after obstacle detection
 
 ---
 
-## Extended Features
-
-To make the platform more practical and closer to a complete smart-agriculture system, the following extended features are proposed. These features are modular and can be implemented in phases.
-
-### Multi-Point Patrol and Location Tagging
-- Route-based patrol missions: define aisles and checkpoints, and stop automatically for sampling.
-- Distance/time-triggered sampling: record readings every N seconds or every M meters.
-- Location tagging: associate each record with an aisle ID (e.g., A1–A10) and checkpoint ID.
-
-### Smart Alerts and Event Handling
-- Threshold alerts: configurable upper and lower limits for temperature, humidity, and light.
-- Trend alerts: detect continuous rise or fall over a time window to provide earlier warning.
-- Event actions: when an alert occurs, the platform can pause, take close-up photos, and mark an event in the log.
-
-### Plant Growth Tracking with Vision (Optional)
-- Scheduled photo capture at fixed locations for long-term comparison.
-- Simple visual metrics (rule-based):
-  - greenness index / color shift (early yellowing detection)
-  - estimated leaf area change
-  - suspicious spot / high-contrast area detection for disease hints
-- Before-and-after comparison: “today vs. last week” quick review at the same checkpoint.
-
-### Closed-Loop Environmental Actuation (Optional)
-Add relay-controlled devices to form a basic closed-loop system:
-- fan / ventilation
-- humidifier (mist)
-- supplemental lighting
-
-Example policy rules:
-- humidity below threshold → mist for 10 s → wait 2 min → re-check
-- light below threshold during daytime → enable LED strip for X minutes
-
-### Remote Dashboard and Operator Interface
-- Local web dashboard hosted on the Pi:
-  - real-time sensor values, alert list, mission status
-  - latest captured images (gallery)
-  - export CSV/report button
-- Mobile-friendly control panel:
-  - start/stop patrol, return home, manual capture, emergency stop
-
-### Reliability and Safety Enhancements
-- Battery monitoring with low-battery warning and safe return/stop.
-- Watchdog and fail-safe stop if the control loop hangs or communication is lost.
-- Obstacle avoidance using ultrasonic or ToF sensors, with stop or reroute logic.
-
-### Deployment Roadmap
-Because practical agricultural robotic impact is usually phased rather than immediate, the platform’s development path is also designed as a gradual roadmap:
-- **Phase 1:** manual control + sensing + basic logging
-- **Phase 2:** structured patrol + event-triggered capture + threshold alerts
-- **Phase 3:** GUI/dashboard + multi-point patrol + richer reporting
-- **Phase 4:** optional closed-loop environmental response and higher-level vision analysis
-
-This phased approach reflects the idea that useful deployment should begin with structured, low-risk, and economically clear inspection tasks before moving toward more complex autonomy.
 
 ---
 
