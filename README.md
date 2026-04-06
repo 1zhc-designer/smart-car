@@ -276,7 +276,7 @@ The Raspberry Pi smart car platform implements a local inspection and control sy
 
 ### Software Architecture
 <p align="center">
-  <img src="images/system_architecture.png" alt="System Software Architecture" width="1000"/>
+  <img src="images/system_architecture.png" alt="System Software Architecture" width="1200"/>
 </p>
 
 The software is organized as a layered architecture built around a DDS-style publish/subscribe control path. At the top level, the operator interacts with the platform through the Qt GUI and infrared remote control. In the middle layer, command and status flow through the DDS message bus. At the lower layer, runtime services access the camera, gimbal, motor driver, line sensors, obstacle sensors, and temperature-monitoring hardware.
