@@ -595,3 +595,107 @@ cd smartcar
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
+```
+
+### Build Targets
+
+The current project builds two runtime executables:
+
+- `smartcar` — command-line runtime entry
+- `smartcar_gui` — Qt desktop GUI entry
+
+The codebase also includes module-level test targets for core functions such as bus communication, motion control, monitoring, gimbal control, camera processing, infrared remote handling, and GUI behavior.
+
+#### Table 4. Build outputs and validation targets
+
+| Target | Type | Purpose |
+|---|---|---|
+| `smartcar` | Executable | Command-line runtime entry |
+| `smartcar_gui` | Executable | Qt desktop GUI application |
+| `bus_test` | Test | Validate internal bus communication |
+| `motion_test` | Test | Validate motion-control logic |
+| `monitor_test` | Test | Validate monitoring behavior |
+| `gimbal_test` | Test | Validate gimbal control behavior |
+| `camera_test` | Test | Validate camera-processing functions |
+| `ir_test` | Test | Validate infrared remote handling |
+| `gui_test` | Test | Validate GUI-related behavior |
+
+---
+
+## User Case UML / Sequence Diagram
+
+This section describes the implemented command paths in the current prototype rather than a future mission-management architecture.
+
+### Sequence Diagram — Manual GUI Control
+
+```mermaid
+sequenceDiagram
+    participant Operator
+    participant GUI as MainWindow
+    participant Facade as SystemFacade
+    participant Bus as LocalDdsBus
+    participant MotionSvc as MotionCommandService
+    participant Ctrl as MotionController
+    participant Driver as GpiodMotorDriver
+
+    Operator->>GUI: Click Forward
+    GUI->>Facade: moveForward()
+    Facade->>Bus: publish(MotionCommandTopic)
+    Bus->>MotionSvc: onCommand(topic)
+    MotionSvc->>Ctrl: apply(Up, speed)
+    Ctrl->>Driver: setLeft(speed, true)
+    Ctrl->>Driver: setRight(speed, true)
+
+    Operator->>GUI: Click Stop
+    GUI->>Facade: stopMotion()
+    Facade->>Bus: publish(Stop)
+    Bus->>MotionSvc: onCommand(topic)
+    MotionSvc->>Ctrl: apply(Stop, 0)
+```
+
+### Sequence Diagram — Tracking-Mode Command Path
+
+```mermaid
+sequenceDiagram
+    participant Operator
+    participant GUI as MainWindow
+    participant Facade as SystemFacade
+    participant AutoTrack as AutoTrackService
+    participant Bus as LocalDdsBus
+    participant MotionSvc as MotionCommandService
+    participant Ctrl as MotionController
+    participant Driver as GpiodMotorDriver
+
+    Operator->>GUI: Select Tracking Mode
+    GUI->>Facade: setMode(Tracking)
+    Facade->>AutoTrack: start()
+
+    loop while tracking is active
+        AutoTrack->>AutoTrack: Read line / obstacle state
+        AutoTrack->>Bus: publish(MotionCommandTopic)
+        Bus->>MotionSvc: onCommand(topic)
+        MotionSvc->>Ctrl: apply(...)
+        Ctrl->>Driver: drive motors
+    end
+
+    alt obstacle detected
+        AutoTrack->>Bus: publish(Stop)
+    end
+```
+
+---
+
+## Circuit / Wiring Diagram
+
+This section summarizes how sensing, control, actuation, warning modules, and camera interfaces are wired to the Raspberry Pi and motor-control hardware.
+
+<p align="center">
+  <img src="images/gpio_wiring_table.png" width="900" alt="GPIO Wiring Table"><br>
+  <em>Figure 6. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
+</p>
+
+---
+
+## Last Updated
+
+2026-03-31
