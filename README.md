@@ -1,7 +1,7 @@
 # A Non-Contact Intelligent Inspection and Micro-Environment Intervention Platform for Strawberry Greenhouses
 
 <p align="center">
-  <img src="images/logo.jpg" width="600">
+  <img src="images/logo.jpg" width="600" alt="Project Logo">
 </p>
 
 ---
@@ -59,23 +59,21 @@ More broadly, the project proposes a new inspection model for strawberry greenho
 This section presents visual documentation of the platform, including real prototype photos. These figures help reviewers understand the mechanical structure, sensor placement, wiring layout, and overall system arrangement.
 
 <p align="center">
-  <img src="images/rover_1.jpg" width="700"><br>
+  <img src="images/rover_1.jpg" width="700" alt="Prototype side view"><br>
   <em>Figure 1. Prototype side view of the greenhouse inspection platform.</em>
 </p>
 
 <p align="center">
-  <img src="images/rover_2.jpg" width="700"><br>
+  <img src="images/rover_2.jpg" width="700" alt="Prototype top view"><br>
   <em>Figure 2. Top view showing the controller board, wiring, and sensor layout.</em>
 </p>
 
 <p align="center">
-  <img src="images/rover_3.jpg" width="700"><br>
+  <img src="images/rover_3.jpg" width="700" alt="Additional prototype view"><br>
   <em>Figure 3. Additional structural view of the prototype platform.</em>
 </p>
 
 ---
-
-## Table of Contents
 
 ## Table of Contents
 
@@ -230,7 +228,6 @@ Provides analog-to-digital conversion for analog sensor input and enables flexib
 
 Used for audible alerts during abnormal conditions or fault events.
 
-
 #### **RGB LED Module**
 
 Provides simple visual state indication such as normal, warning, or fault status.
@@ -260,7 +257,6 @@ Used for temporary wiring, testing, and modular integration during development.
 Used for battery or power monitoring to support low-voltage warning and safer operation.
 
 ---
----
 
 ## System Functions
 
@@ -271,7 +267,7 @@ The Raspberry Pi smart car platform implements a local inspection and control sy
 <p align="center">
   <img src="images/system_architecture.png" alt="System Software Architecture" width="1200"/>
   <br>
-  <em>Figure 5. Layered software architecture of the current implemented system. The present monitoring block corresponds to temperature monitoring and local alerting.</em>
+  <em>Figure 5. Layered software architecture of the current implemented system.</em>
 </p>
 
 The software is organized as a layered architecture built around a DDS-style publish/subscribe control path. At the top level, the operator interacts with the platform through the Qt GUI and infrared remote control. In the middle layer, motion and gimbal commands flow through the internal DDS-style message bus. At the lower layer, runtime services access the camera, gimbal, motor driver, line sensors, obstacle sensors, and temperature-monitoring hardware.
@@ -289,24 +285,6 @@ The software is organized as a layered architecture built around a DDS-style pub
   - editable lower and upper temperature thresholds
 - The system also supports infrared remote control for motion and gimbal commands during manual operation.
 
-#### Figure 6. Operating mode state diagram
-
-```mermaid
-stateDiagram-v2
-    [*] --> ManualMode
-
-    ManualMode : GUI motion enabled
-    ManualMode : GUI gimbal enabled
-    ManualMode : IR remote enabled
-
-    TrackingMode : AutoTrackService enabled
-    TrackingMode : IR remote disabled
-    TrackingMode : Manual motion buttons disabled
-
-    ManualMode --> TrackingMode : Select Tracking Mode
-    TrackingMode --> ManualMode : Select Manual Mode
-```
-
 ### Motion and Vehicle Control
 
 - The system supports the basic motion primitives:
@@ -319,33 +297,6 @@ stateDiagram-v2
 - A motion command service receives and executes the commands with duration control.
 - The motion controller converts high-level motion commands into left and right motor actions.
 - The GPIO motor driver performs low-level motor actuation using direction control and software PWM.
-
-#### Figure 7. Manual control command path
-
-```mermaid
-sequenceDiagram
-    participant Operator
-    participant GUI as MainWindow
-    participant Facade as SystemFacade
-    participant Bus as LocalDdsBus
-    participant MotionSvc as MotionCommandService
-    participant Ctrl as MotionController
-    participant Driver as GpiodMotorDriver
-
-    Operator->>GUI: Click Forward
-    GUI->>Facade: moveForward()
-    Facade->>Bus: publish(MotionCommandTopic)
-    Bus->>MotionSvc: onCommand(topic)
-    MotionSvc->>Ctrl: apply(Up, speed)
-    Ctrl->>Driver: setLeft(speed, true)
-    Ctrl->>Driver: setRight(speed, true)
-
-    Operator->>GUI: Click Stop
-    GUI->>Facade: stopMotion()
-    Facade->>Bus: publish(Stop)
-    Bus->>MotionSvc: onCommand(topic)
-    MotionSvc->>Ctrl: apply(Stop, 0)
-```
 
 ### Gimbal Control
 
@@ -372,32 +323,18 @@ sequenceDiagram
   - the gimbal is returned toward the center position
 - The auto-tracking service runs independently from manual teleoperation and is coordinated by the system facade.
 
-#### Figure 8. Auto-tracking logic
+#### Table 1. Auto-tracking decision rules
 
-```mermaid
-flowchart TD
-    A[Start AutoTrackService] --> B[Initialize line sensors and obstacle sensors]
-    B --> C[Launch internal worker threads]
-
-    C --> D[Sensor thread]
-    C --> E[Obstacle thread]
-    C --> F[Gimbal sweep thread]
-
-    D --> G{Line state}
-    G -->|left=0 right=0| H[Publish Forward]
-    G -->|left=1 right=0| I[Publish Left Turn]
-    G -->|left=0 right=1| J[Publish Right Turn]
-    G -->|left=1 right=1| K[Publish Stop: track lost]
-
-    E --> L{Obstacle active?}
-    L -->|Yes| M[Publish Stop]
-    M --> N[Center gimbal]
-    L -->|No| G
-
-    F --> O{Obstacle active?}
-    O -->|Yes| N
-    O -->|No| P[Sweep pan position]
-```
+| Condition | System action | Purpose |
+|---|---|---|
+| Left = 0, Right = 0 | Publish **Forward** motion command | Move along the detected path |
+| Left = 1, Right = 0 | Publish **Left Turn** motion command | Correct heading to the left |
+| Left = 0, Right = 1 | Publish **Right Turn** motion command | Correct heading to the right |
+| Left = 1, Right = 1 | Publish **Stop** command | Stop when the track is lost |
+| Obstacle detected | Publish **Stop** command immediately | Prevent collision |
+| Obstacle cleared | Resume line-based decision logic | Continue auto-tracking |
+| Obstacle active during tracking | Return gimbal toward center position | Keep the camera in a safe neutral orientation |
+| Tracking mode enabled | Run sensor, obstacle, and gimbal worker loops | Support continuous autonomous behavior |
 
 ### Camera and Visual Inspection
 
@@ -414,35 +351,6 @@ flowchart TD
 - The processed frame is annotated and displayed in the GUI for operator review.
 - The system saves captured inspection images locally when significant detection results are present, such as fruit targets or abnormal leaves.
 
-#### Figure 9. Camera inspection pipeline
-
-```mermaid
-flowchart LR
-    A[Camera frame] --> B[Preprocess frame]
-    B --> C[Convert to HSV]
-
-    C --> D[Fruit mask]
-    D --> E[Detect fruits]
-    E --> F[Draw fruit boxes]
-
-    C --> G[Leaf mask]
-    G --> H[Detect leaves]
-    H --> I[Color-ratio analysis]
-    I --> J[Classify leaf status]
-
-    F --> K[Annotated frame]
-    J --> K
-
-    K --> L{Fruit or abnormal leaf found?}
-    L -->|Yes| M[Save image to ./captures]
-    L -->|No| N[Skip saving]
-
-    M --> O[Update detections]
-    N --> O
-    O --> P[Update latest frame]
-    P --> Q[Notify GUI callback]
-```
-
 ### Environmental Monitoring and Warning
 
 - The system currently implements **temperature monitoring** using an NTC sensor through the PCF8591 ADC.
@@ -453,33 +361,16 @@ flowchart LR
   - buzzer
 - The GUI shows both the current temperature and the current monitoring status in real time.
 
-#### Figure 10. Temperature monitoring and alert logic
+#### Table 2. Temperature monitoring and local alert behavior
 
-```mermaid
-flowchart TD
-    A[Timer event] --> B[Read NTC via PCF8591]
-    B --> C{Reading valid?}
-
-    C -->|No| D[Keep last valid state / retry]
-    C -->|Yes| E{temp < low?}
-
-    E -->|Yes| F[Too Cold]
-    F --> G[LED alert]
-    F --> H[Buzzer alert]
-
-    E -->|No| I{temp >= high?}
-    I -->|Yes| J[Too Hot]
-    J --> K[LED alert]
-    J --> L[Buzzer alert]
-
-    I -->|No| M[Normal]
-    M --> N[Green LED / no buzzer]
-
-    F --> O[Update GUI status]
-    J --> O
-    M --> O
-    D --> O
-```
+| Runtime condition | Temperature status | LED behavior | Buzzer behavior | GUI update |
+|---|---|---|---|---|
+| Reading valid and below lower threshold | **Too Cold** | Alert indication enabled | Alert indication enabled | Show low-temperature warning status |
+| Reading valid and within threshold range | **Normal** | Normal-state indication | No warning tone | Show normal status |
+| Reading valid and above upper threshold | **Too Hot** | Alert indication enabled | Alert indication enabled | Show high-temperature warning status |
+| Reading invalid but previous valid state exists | Retry / keep last valid interpretation | Preserve safe runtime behavior | No new abnormal trigger unless condition confirmed | Show retry or temporary invalid state |
+| Reading invalid and no valid reference available | Sensor invalid / unavailable | Conservative state | Conservative state | Show invalid-sensor status |
+| User changes low / high limits in GUI | Thresholds updated | Future evaluations use new limits | Future evaluations use new limits | GUI reflects new thresholds immediately |
 
 ### System Coordination
 
@@ -516,15 +407,17 @@ The current version already implements the following practical system functions:
 
 The following ideas are useful future extensions, but they are not fully implemented in the current code version:
 
-- humidity sensing
-- light sensing
-- structured multi-point patrol with checkpoint tagging
-- CSV / SQLite mission logging
-- automatic mission summary generation
-- low-battery monitoring
-- remote web dashboard
-- closed-loop environmental actuation
-- reroute logic after obstacle detection
+| Planned capability | Current status |
+|---|---|
+| Humidity sensing | Not yet implemented |
+| Light sensing | Not yet implemented |
+| Structured multi-point patrol with checkpoint tagging | Not yet implemented |
+| CSV / SQLite mission logging | Not yet implemented |
+| Automatic mission summary generation | Not yet implemented |
+| Low-battery monitoring | Not yet implemented |
+| Remote web dashboard | Not yet implemented |
+| Closed-loop environmental actuation | Not yet implemented |
+| Reroute logic after obstacle detection | Not yet implemented |
 
 ---
 
@@ -604,6 +497,21 @@ The current software architecture is centered on a small number of implemented r
 
 - **Gimbal control path**  
   Handles pan-tilt camera control through a PCA9685-based driver over Linux I2C.
+
+#### Table 3. Implemented runtime modules and responsibilities
+
+| Module / Class | Main responsibility | Input | Output / Effect |
+|---|---|---|---|
+| `MainWindow` | Provide the Qt GUI for live operation | User button clicks, mode selection | GUI commands, camera preview, temperature/status display |
+| `SystemFacade` | Coordinate runtime services and mode switching | GUI mode/control requests | Starts/stops services and publishes typed commands |
+| `IrRemote` | Decode IR remote input | Remote-control key events | Motion or gimbal command topics |
+| `MotionCommandService` | Execute motion commands from the DDS-style bus | `MotionCommandTopic` | Timed motion application |
+| `MotionController` | Map motion primitives to differential-drive behavior | Forward / backward / left / right / stop | Left/right motor actions |
+| `GpiodMotorDriver` | Drive motors through GPIO and software PWM | Motor direction and speed requests | Physical wheel actuation |
+| `GimbalService` | Control pan-tilt servos through PCA9685 | Gimbal commands | Pan / tilt / reset movement |
+| `CameraService` | Capture frames and run fruit/leaf inspection | Live camera frames | Annotated frame, detections, saved images |
+| `MonitorService` | Monitor temperature and generate local alerts | NTC temperature readings | GUI status update, LED control, buzzer control |
+| `AutoTrackService` | Perform line-following style autonomous control | Line-sensor and obstacle-sensor states | Published motion commands for tracking mode |
 
 ### Current Data / Command Flow
 
@@ -687,93 +595,3 @@ cd smartcar
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
-```
-
-### Build Targets
-
-The current project builds two runtime executables:
-
-- `smartcar` — command-line runtime entry
-- `smartcar_gui` — Qt desktop GUI entry
-
-The codebase also includes module-level test targets for core functions such as bus communication, motion control, monitoring, gimbal control, camera processing, infrared remote handling, and GUI behavior.
-
----
-
-## User Case UML / Sequence Diagram
-
-This section describes the implemented command paths in the current prototype rather than a future mission-management architecture.
-
-### Sequence Diagram — Manual GUI Control
-
-```mermaid
-sequenceDiagram
-    participant Operator
-    participant GUI as MainWindow
-    participant Facade as SystemFacade
-    participant Bus as LocalDdsBus
-    participant MotionSvc as MotionCommandService
-    participant Ctrl as MotionController
-    participant Driver as GpiodMotorDriver
-
-    Operator->>GUI: Click Forward
-    GUI->>Facade: moveForward()
-    Facade->>Bus: publish(MotionCommandTopic)
-    Bus->>MotionSvc: onCommand(topic)
-    MotionSvc->>Ctrl: apply(Up, speed)
-    Ctrl->>Driver: setLeft(speed, true)
-    Ctrl->>Driver: setRight(speed, true)
-
-    Operator->>GUI: Click Stop
-    GUI->>Facade: stopMotion()
-    Facade->>Bus: publish(Stop)
-    Bus->>MotionSvc: onCommand(topic)
-    MotionSvc->>Ctrl: apply(Stop, 0)
-```
-
-### Sequence Diagram — Tracking-Mode Command Path
-
-```mermaid
-sequenceDiagram
-    participant Operator
-    participant GUI as MainWindow
-    participant Facade as SystemFacade
-    participant AutoTrack as AutoTrackService
-    participant Bus as LocalDdsBus
-    participant MotionSvc as MotionCommandService
-    participant Ctrl as MotionController
-    participant Driver as GpiodMotorDriver
-
-    Operator->>GUI: Select Tracking Mode
-    GUI->>Facade: setMode(Tracking)
-    Facade->>AutoTrack: start()
-
-    loop while tracking is active
-        AutoTrack->>AutoTrack: Read line / obstacle state
-        AutoTrack->>Bus: publish(MotionCommandTopic)
-        Bus->>MotionSvc: onCommand(topic)
-        MotionSvc->>Ctrl: apply(...)
-        Ctrl->>Driver: drive motors
-    end
-
-    alt obstacle detected
-        AutoTrack->>Bus: publish(Stop)
-    end
-```
-
----
-
-## Circuit / Wiring Diagram
-
-This section summarizes how sensing, control, actuation, warning modules, and camera interfaces are wired to the Raspberry Pi and motor-control hardware.
-
-<p align="center">
-  <img src="images/gpio_wiring_table.png" width="900"><br>
-  <em>Figure 11. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
-</p>
-
----
-
-## Last Updated
-
-2026-04-06
