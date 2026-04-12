@@ -82,3 +82,7 @@ add_test(NAME ir_test COMMAND ir_test)
 add_executable(gui_test tests/GuiTest.cpp include/gui/MainWindow.hpp)
 target_link_libraries(gui_test PRIVATE car_logic Qt5::Widgets Qt5::Test)
 add_test(NAME gui_test COMMAND gui_test)
+
+add_executable(autotrack_test tests/AutoTrackTest.cpp)
+target_link_libraries(autotrack_test PRIVATE car_logic pthread)
+add_test(NAME autotrack_test COMMAND autotrack_test)

@@ -1,4 +1,5 @@
 #include "gui/SystemFacade.hpp"
+
 #include <iostream>
 
 const std::chrono::milliseconds SystemFacade::kContinuous =
@@ -11,7 +12,7 @@ SystemFacade::SystemFacade()
               100),
       motionController_(driver_),
       motionService_(bus_, motionController_),
-      camera_(0, "./captures", false),
+      camera_(bus_, 0, "./captures", false),
       gimbalService_(bus_, gimbal_),
       irRemote_(bus_),
       autoTrack_(bus_, gimbal_) {}
@@ -96,30 +97,22 @@ void SystemFacade::publishGimbal(GimbalCommand command, const std::string& sourc
 }
 
 void SystemFacade::moveForward() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishMotion(Motion::Up, kSpeedForward, kContinuous, "gui");
 }
 
 void SystemFacade::moveBackward() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishMotion(Motion::Down, kSpeedForward, kContinuous, "gui");
 }
 
 void SystemFacade::turnLeft() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishMotion(Motion::Left, kSpeedTurn, kContinuous, "gui");
 }
 
 void SystemFacade::turnRight() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishMotion(Motion::Right, kSpeedTurn, kContinuous, "gui");
 }
 
@@ -128,37 +121,27 @@ void SystemFacade::stopMotion() {
 }
 
 void SystemFacade::gimbalUp() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishGimbal(GimbalCommand::TiltUp, "gui");
 }
 
 void SystemFacade::gimbalDown() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishGimbal(GimbalCommand::TiltDown, "gui");
 }
 
 void SystemFacade::gimbalLeft() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishGimbal(GimbalCommand::PanLeft, "gui");
 }
 
 void SystemFacade::gimbalRight() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishGimbal(GimbalCommand::PanRight, "gui");
 }
 
 void SystemFacade::gimbalReset() {
-    if (mode_ != ControlMode::Manual) {
-        return;
-    }
+    if (mode_ != ControlMode::Manual) return;
     publishGimbal(GimbalCommand::Reset, "gui");
 }
 
