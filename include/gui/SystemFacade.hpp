@@ -1,22 +1,33 @@
 #pragma once
-
-#include <chrono>
-#include <string>
-
-#include <opencv2/opencv.hpp>
-
+#include "autonomy/AutoTrackService.hpp"
+#include "dds/LocalDdsBus.hpp"
+#include "dds/VehicleTopics.hpp"
+#include "gimbal/GimbalCommandService.hpp"
 #include "gimbal/GimbalService.hpp"
+#include "ir/IrRemote.hpp"
 #include "monitor/CameraService.hpp"
 #include "monitor/MonitorService.hpp"
 #include "motion/MotionController.hpp"
 #include "motor/GpiodMotorDriver.hpp"
-#include "rt/Scheduler.hpp"
+#include "rt/MotionCommandService.hpp"
+#include <chrono>
+#include <string>
+#include <opencv2/opencv.hpp>
 
 /**
- * @brief High-level façade used by the GUI.
+ * @brief High-level façade used by the GUI and CLI.
+ *
+ * GUI buttons and IR input both publish DDS-style topics into the same bus.
+ * Runtime services subscribe independently, which removes the need for a
+ * global scheduler object.
  */
 class SystemFacade {
 public:
+    enum class ControlMode {
+        Tracking,
+        Manual
+    };
+
     SystemFacade();
     ~SystemFacade();
 
@@ -25,6 +36,9 @@ public:
 
     bool start();
     void stop();
+
+    void setMode(ControlMode mode);
+    [[nodiscard]] ControlMode mode() const noexcept { return mode_; }
 
     void moveForward();
     void moveBackward();
@@ -46,18 +60,27 @@ public:
     void setTemperatureLimits(int low, int high);
 
     cv::Mat latestFrame() const;
+    void setFrameCallback(CameraService::FrameCallback callback);
 
 private:
     static constexpr int kSpeedForward = 50;
     static constexpr int kSpeedTurn = 70;
     static const std::chrono::milliseconds kContinuous;
-    static const std::chrono::milliseconds kStopDur;
+    static const std::chrono::milliseconds kStopDuration;
 
+    void publishMotion(Motion motion, int speed, std::chrono::milliseconds duration, const std::string& source);
+    void publishGimbal(GimbalCommand command, const std::string& source);
+
+    LocalDdsBus bus_{};
     GpiodMotorDriver driver_;
-    MotionController motion_;
-    Scheduler sched_;
+    MotionController motionController_;
+    MotionCommandService motionService_;
     MonitorService monitor_;
     CameraService camera_;
     GimbalService gimbal_;
+    GimbalCommandService gimbalService_;
+    IrRemote irRemote_;
+    AutoTrackService autoTrack_;
     bool started_{false};
+    ControlMode mode_{ControlMode::Manual};
 };

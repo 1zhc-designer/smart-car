@@ -1,43 +1,45 @@
 #pragma once
-
 #include <atomic>
 #include <functional>
 #include <mutex>
 #include <string>
 #include <thread>
 
+struct gpiod_chip;
+struct gpiod_line_request;
+
 /**
- * @brief Temperature, light and alarm monitor service.
+ * @brief Temperature and alarm monitor using i2c-dev and libgpiod v2.
  *
- * The service reads PCF8591 ADC channels through @c /dev/i2c-1 and drives LEDs
- * and buzzer through libgpiod v2. The worker thread blocks in @c epoll_wait()
- * and is woken by blocking I/O sources such as @c timerfd and @c eventfd.
+ * GPIO outputs use libgpiod. PCF8591 ADC is read directly through
+ * @c /dev/i2c-1.
  *
- * Existing temperature/status APIs are preserved. Photoresistor related support
- * is added through light-level sampling and optional C++ callbacks.
+ * The monitor keeps the original temperature/alarm behavior from the main
+ * branch and additionally samples the photoresistor on PCF8591 AIN0 so the GUI
+ * can display the current light intensity.
+ *
+ * GUI is the only path allowed to update temperature limits. Joystick-based
+ * threshold adjustment is intentionally disabled.
  */
 class MonitorService {
 public:
     /**
-     * @brief Callback used for consolidated status updates.
-     *
-     * The callback receives the latest temperature and a status string, for
-     * example @c NORMAL|L=123.
+     * @brief Callback used for consolidated temperature/status updates.
      */
     using StatusCallback = std::function<void(double, const std::string&)>;
 
     /**
-     * @brief Callback invoked when a new light level sample is available.
+     * @brief Callback invoked whenever a new photoresistor sample is available.
      *
-     * @param level Latest raw PCF8591 ADC value in the range 0..255.
+     * @param level Latest raw PCF8591 AIN0 value in the range 0..255.
      */
     using LightLevelCallback = std::function<void(int level)>;
 
     /**
-     * @brief Callback invoked when the light/dark state changes.
+     * @brief Callback invoked when the derived light/dark state changes.
      *
-     * @param level Latest raw PCF8591 ADC value.
-     * @param dark  True when the raw value is less than or equal to the current
+     * @param level Latest raw PCF8591 AIN0 value.
+     * @param dark  True when @p level is less than or equal to the configured
      *              light threshold.
      */
     using LightStateCallback = std::function<void(int level, bool dark)>;
@@ -48,50 +50,31 @@ public:
     MonitorService(const MonitorService&) = delete;
     MonitorService& operator=(const MonitorService&) = delete;
 
-    /** @brief Start the worker thread. Safe to call repeatedly. */
     void start();
-
-    /** @brief Stop the worker thread and release resources. Safe to call repeatedly. */
     void stop();
-
-    /** @brief Return whether the worker thread is currently active. */
     bool isRunning() const noexcept { return running_.load(); }
 
-    /** @brief Return the latest sampled NTC temperature in Celsius. */
     double currentTemperature() const;
-
-    /** @brief Return the currently configured low temperature threshold. */
     int lowLimit() const noexcept;
-
-    /** @brief Return the currently configured high temperature threshold. */
     int highLimit() const noexcept;
-
-    /** @brief Return the latest composed status string. */
     std::string currentStatus() const;
 
-    /**
-     * @brief Update the allowed temperature range.
-     *
-     * Invalid ranges where @p low is not less than @p high are ignored.
-     */
     void setLimits(int low, int high);
-
-    /** @brief Register or replace the consolidated status callback. */
     void setStatusCallback(StatusCallback cb);
 
     /** @brief Return the latest sampled photoresistor raw value. */
     int currentLightLevel() const;
 
-    /** @brief Return whether the latest light sample is considered dark. */
+    /** @brief Return whether the latest sampled light level is considered dark. */
     bool isDark() const;
 
     /** @brief Return the raw ADC threshold used to classify dark/light state. */
     int lightThreshold() const noexcept;
 
     /**
-     * @brief Set the photoresistor threshold.
+     * @brief Set the light/dark threshold used by isDark().
      *
-     * Values are clamped to the PCF8591 raw range 0..255.
+     * Values are clamped to the valid PCF8591 range 0..255.
      */
     void setLightThreshold(int threshold) noexcept;
 
@@ -102,45 +85,24 @@ public:
     void setLightStateCallback(LightStateCallback cb);
 
 private:
-    /** @brief Main epoll-based worker loop. */
     void runLoop();
-
-    /** @brief Create or validate the GPIO request used for outputs. */
     void ensureGpioReady();
-
-    /** @brief Open and configure the I2C device used by the PCF8591. */
     void ensureI2cReady();
-
-    /** @brief Create epoll, timerfd and eventfd instances and register them. */
-    void ensurePollerReady();
-
-    /** @brief Release all owned file descriptors and GPIO resources. */
     void closeResources();
 
-    /** @brief Read one PCF8591 ADC channel. */
     unsigned char readPcf8591Channel(int channel);
-
-    /** @brief Read the joystick ADC channel if present. */
-    unsigned char readJoystick();
-
-    /** @brief Convert the NTC ADC channel reading into Celsius. */
-    double readNtcTemperature();
-
-    /** @brief Read and store the current photoresistor ADC value. */
+    bool tryReadNtcTemperature(double& temp);
     int readLightLevel();
 
-    /** @brief Drive a GPIO output line to the requested active state. */
-    void writeGpioValue(int offset, bool active);
+    void writePhysicalLevel(int offset, bool high);
+    void setLedRed(bool on);
+    void setLedGreen(bool on);
+    void setBuzzer(bool on);
 
-    /** @brief Update cached state and invoke the consolidated callback. */
     void updateUiState(double temp, const std::string& status);
-
-    /** @brief Publish light level and light/dark state callbacks. */
     void publishLightSample(int level);
 
     static constexpr int kLightSensorChannel = 0;
-    static constexpr int kNtcChannel = 1;
-    static constexpr int kJoystickChannel = 2;
 
     std::atomic<bool> stopRequested_{false};
     std::atomic<bool> running_{false};
@@ -152,6 +114,8 @@ private:
 
     mutable std::mutex stateMutex_;
     double currentTemperature_{0.0};
+    double lastValidTemperature_{0.0};
+    bool hasValidTemperature_{false};
     int currentLightLevel_{0};
     bool currentIsDark_{false};
     std::string currentStatus_{"Initializing"};
@@ -163,6 +127,7 @@ private:
     int epollFd_{-1};
     int timerFd_{-1};
     int i2cFd_{-1};
-    struct gpiod_chip* chip_{nullptr};
-    struct gpiod_line_request* gpioRequest_{nullptr};
+
+    gpiod_chip* chip_{nullptr};
+    gpiod_line_request* gpioRequest_{nullptr};
 };

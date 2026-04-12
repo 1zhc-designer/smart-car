@@ -1,12 +1,12 @@
 #include "gui/MainWindow.hpp"
-
+#include <cmath>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QImage>
+#include <QMetaObject>
 #include <QPixmap>
 #include <QVBoxLayout>
 #include <QWidget>
-
 #include <opencv2/opencv.hpp>
 
 namespace {
@@ -29,14 +29,17 @@ QImage matToQImage(const cv::Mat& mat) {
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setupUi();
     connectSignals();
+
+    system_.setFrameCallback([this]() {
+        QMetaObject::invokeMethod(this, [this]() {
+            refreshUi();
+        }, Qt::QueuedConnection);
+    });
+
     system_.start();
 
     lowLimitSpin_->setValue(system_.lowLimit());
     highLimitSpin_->setValue(system_.highLimit());
-
-    refreshTimer_ = new QTimer(this);
-    connect(refreshTimer_, &QTimer::timeout, this, &MainWindow::refreshUi);
-    refreshTimer_->start(100);
 
     refreshUi();
 }
@@ -47,11 +50,25 @@ MainWindow::~MainWindow() {
 
 void MainWindow::setupUi() {
     setWindowTitle("Smart Car Control");
-    resize(1100, 850);
+    resize(1100, 900);
 
     auto* central = new QWidget(this);
     setCentralWidget(central);
     auto* mainLayout = new QVBoxLayout(central);
+
+    auto* modeGroup = new QGroupBox("Operation Mode", this);
+    auto* modeLayout = new QHBoxLayout(modeGroup);
+    modeCombo_ = new QComboBox(this);
+    modeCombo_->addItem("Tracking Mode");
+    modeCombo_->addItem("Manual Mode");
+    modeCombo_->setCurrentIndex(1);
+    modeStatusLabel_ = new QLabel("Current Mode: Manual", this);
+    modeLayout->addWidget(new QLabel("Mode:", this));
+    modeLayout->addWidget(modeCombo_);
+    modeLayout->addSpacing(20);
+    modeLayout->addWidget(modeStatusLabel_);
+    modeLayout->addStretch();
+    mainLayout->addWidget(modeGroup);
 
     auto* cameraGroup = new QGroupBox("Camera View", this);
     auto* cameraLayout = new QVBoxLayout(cameraGroup);
@@ -117,9 +134,9 @@ void MainWindow::setupUi() {
     gimbalLayout->addLayout(gimbalBottom);
     mainLayout->addWidget(gimbalGroup);
 
-    auto* tempGroup = new QGroupBox("Temperature Monitor", this);
+    auto* tempGroup = new QGroupBox("Temperature & Light Monitor", this);
     auto* tempLayout = new QVBoxLayout(tempGroup);
-    currentTempLabel_ = new QLabel("Current Temperature: -- | Light: --", this);
+    currentTempLabel_ = new QLabel("Current Temperature: -- | Current Light: --", this);
     currentStatusLabel_ = new QLabel("Status: --", this);
 
     auto* limitsLayout = new QHBoxLayout();
@@ -144,6 +161,7 @@ void MainWindow::setupUi() {
 }
 
 void MainWindow::connectSignals() {
+    connect(modeCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::applyModeSelection);
     connect(forwardBtn_, &QPushButton::clicked, this, [this]() { system_.moveForward(); });
     connect(backwardBtn_, &QPushButton::clicked, this, [this]() { system_.moveBackward(); });
     connect(leftBtn_, &QPushButton::clicked, this, [this]() { system_.turnLeft(); });
@@ -158,6 +176,7 @@ void MainWindow::connectSignals() {
 }
 
 void MainWindow::refreshUi() {
+    updateModeView();
     updateCameraView();
     updateTemperatureView();
 }
@@ -170,6 +189,38 @@ void MainWindow::applyTemperatureLimits() {
     }
 }
 
+void MainWindow::applyModeSelection() {
+    if (modeCombo_->currentIndex() == 0) {
+        system_.setMode(SystemFacade::ControlMode::Tracking);
+    } else {
+        system_.setMode(SystemFacade::ControlMode::Manual);
+    }
+    updateModeView();
+}
+
+void MainWindow::updateModeView() {
+    const bool manual = system_.mode() == SystemFacade::ControlMode::Manual;
+    const int expectedIndex = manual ? 1 : 0;
+    if (modeCombo_->currentIndex() != expectedIndex) {
+        modeCombo_->blockSignals(true);
+        modeCombo_->setCurrentIndex(expectedIndex);
+        modeCombo_->blockSignals(false);
+    }
+
+    modeStatusLabel_->setText(manual ? "Current Mode: Manual"
+                                     : "Current Mode: Tracking");
+
+    forwardBtn_->setEnabled(manual);
+    backwardBtn_->setEnabled(manual);
+    leftBtn_->setEnabled(manual);
+    rightBtn_->setEnabled(manual);
+    gimbalUpBtn_->setEnabled(manual);
+    gimbalDownBtn_->setEnabled(manual);
+    gimbalLeftBtn_->setEnabled(manual);
+    gimbalRightBtn_->setEnabled(manual);
+    gimbalResetBtn_->setEnabled(manual);
+}
+
 void MainWindow::updateCameraView() {
     const cv::Mat frame = system_.latestFrame();
     const QImage image = matToQImage(frame);
@@ -180,15 +231,18 @@ void MainWindow::updateCameraView() {
 }
 
 void MainWindow::updateTemperatureView() {
-    currentTempLabel_->setText(
-        QString("Current Temperature: %1 °C | Light: %2")
-            .arg(system_.currentTemperature(), 0, 'f', 2)
-            .arg(system_.currentLightLevel()));
-    currentStatusLabel_->setText(QString("Status: %1").arg(QString::fromStdString(system_.currentStatus())));
-    if (!lowLimitSpin_->hasFocus()) {
-        lowLimitSpin_->setValue(system_.lowLimit());
+    const double temp = system_.currentTemperature();
+    const int light = system_.currentLightLevel();
+    const QString status = QString::fromStdString(system_.currentStatus());
+
+    if (std::isfinite(temp)) {
+        currentTempLabel_->setText(
+            QString("Current Temperature: %1 °C | Light: %2")
+                .arg(temp, 0, 'f', 2)
+                .arg(light));
+    } else {
+        currentTempLabel_->setText(QString("Current Temperature: -- | Light: %1").arg(light));
     }
-    if (!highLimitSpin_->hasFocus()) {
-        highLimitSpin_->setValue(system_.highLimit());
-    }
+
+    currentStatusLabel_->setText(QString("Status: %1").arg(status));
 }
