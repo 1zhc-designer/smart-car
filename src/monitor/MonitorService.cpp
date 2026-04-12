@@ -1,8 +1,6 @@
 #include "monitor/MonitorService.hpp"
-
 #include <algorithm>
 #include <gpiod.h>
-
 #include <fcntl.h>
 #include <linux/i2c-dev.h>
 #include <sys/epoll.h>
@@ -10,7 +8,6 @@
 #include <sys/ioctl.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
-
 #include <array>
 #include <cerrno>
 #include <cmath>
@@ -69,6 +66,16 @@ void drainEventfd(int eventFd) {
         break;
     }
 }
+
+int clampToByte(int value) {
+    if (value < 0) {
+        return 0;
+    }
+    if (value > 255) {
+        return 255;
+    }
+    return value;
+}
 } // namespace
 
 MonitorService::~MonitorService() {
@@ -78,6 +85,20 @@ MonitorService::~MonitorService() {
 double MonitorService::currentTemperature() const {
     std::lock_guard<std::mutex> lock(stateMutex_);
     return currentTemperature_;
+}
+
+int MonitorService::currentLightLevel() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return currentLightLevel_;
+}
+
+bool MonitorService::isDark() const {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    return currentIsDark_;
+}
+
+int MonitorService::lightThreshold() const noexcept {
+    return lightThreshold_.load();
 }
 
 int MonitorService::lowLimit() const noexcept {
@@ -101,9 +122,23 @@ void MonitorService::setLimits(int low, int high) {
     highLimit_.store(high, std::memory_order_release);
 }
 
+void MonitorService::setLightThreshold(int threshold) noexcept {
+    lightThreshold_.store(clampToByte(threshold), std::memory_order_release);
+}
+
 void MonitorService::setStatusCallback(StatusCallback cb) {
     std::lock_guard<std::mutex> lock(stateMutex_);
     statusCallback_ = std::move(cb);
+}
+
+void MonitorService::setLightLevelCallback(LightLevelCallback cb) {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    lightLevelCallback_ = std::move(cb);
+}
+
+void MonitorService::setLightStateCallback(LightStateCallback cb) {
+    std::lock_guard<std::mutex> lock(stateMutex_);
+    lightStateCallback_ = std::move(cb);
 }
 
 void MonitorService::start() {
@@ -281,6 +316,15 @@ unsigned char MonitorService::readPcf8591Channel(int channel) {
     return static_cast<unsigned char>(sum / kSamples);
 }
 
+int MonitorService::readLightLevel() {
+    const int level = static_cast<int>(readPcf8591Channel(kLightSensorChannel));
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        currentLightLevel_ = level;
+    }
+    return level;
+}
+
 bool MonitorService::tryReadNtcTemperature(double& temp) {
     constexpr double Vref = 5.0;
     constexpr double R0 = 10000.0;
@@ -319,6 +363,29 @@ bool MonitorService::tryReadNtcTemperature(double& temp) {
     lastValidTemperature_ = temp;
     hasValidTemperature_ = true;
     return true;
+}
+
+void MonitorService::publishLightSample(int level) {
+    LightLevelCallback lightLevelCb;
+    LightStateCallback lightStateCb;
+    bool dark = false;
+    bool changed = false;
+
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        lightLevelCb = lightLevelCallback_;
+        lightStateCb = lightStateCallback_;
+        dark = level <= lightThreshold_.load(std::memory_order_acquire);
+        changed = (dark != currentIsDark_);
+        currentIsDark_ = dark;
+    }
+
+    if (lightLevelCb) {
+        lightLevelCb(level);
+    }
+    if (changed && lightStateCb) {
+        lightStateCb(level, dark);
+    }
 }
 
 void MonitorService::updateUiState(double temp, const std::string& status) {
@@ -419,6 +486,10 @@ void MonitorService::runLoop() {
                 const int high = highLimit_.load(std::memory_order_acquire);
 
                 double temp = std::numeric_limits<double>::quiet_NaN();
+
+                const int light = readLightLevel();
+                publishLightSample(light);
+                
                 if (!tryReadNtcTemperature(temp)) {
                     if (hasValidTemperature_) {
                         temp = lastValidTemperature_;
