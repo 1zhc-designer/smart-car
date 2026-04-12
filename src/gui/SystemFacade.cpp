@@ -1,5 +1,4 @@
 #include "gui/SystemFacade.hpp"
-
 #include <iostream>
 
 const std::chrono::milliseconds SystemFacade::kContinuous =
@@ -165,6 +164,10 @@ void SystemFacade::gimbalReset() {
 
 double SystemFacade::currentTemperature() const {
     return monitor_.currentTemperature();
+}
+
+int SystemFacade::currentLightLevel() const {
+    return monitor_.currentLightLevel();
 }
 
 std::string SystemFacade::currentStatus() const {
