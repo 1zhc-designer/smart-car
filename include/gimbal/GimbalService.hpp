@@ -20,6 +20,8 @@ public:
     void tiltDown();
     void panLeft();
     void panRight();
+    void setTiltPosition(int pulse);
+    void setPanPosition(int pulse);
 
     int currentTilt() const;
     int currentPan() const;
