@@ -1,7 +1,5 @@
 #include "gui/MainWindow.hpp"
-
 #include <cmath>
-
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QImage>
@@ -9,7 +7,6 @@
 #include <QPixmap>
 #include <QVBoxLayout>
 #include <QWidget>
-
 #include <opencv2/opencv.hpp>
 
 namespace {
@@ -137,9 +134,9 @@ void MainWindow::setupUi() {
     gimbalLayout->addLayout(gimbalBottom);
     mainLayout->addWidget(gimbalGroup);
 
-    auto* tempGroup = new QGroupBox("Temperature Monitor", this);
+    auto* tempGroup = new QGroupBox("Temperature & Light Monitor", this);
     auto* tempLayout = new QVBoxLayout(tempGroup);
-    currentTempLabel_ = new QLabel("Current Temperature: --", this);
+    currentTempLabel_ = new QLabel("Current Temperature: -- | Current Light: --", this);
     currentStatusLabel_ = new QLabel("Status: --", this);
 
     auto* limitsLayout = new QHBoxLayout();
@@ -235,12 +232,16 @@ void MainWindow::updateCameraView() {
 
 void MainWindow::updateTemperatureView() {
     const double temp = system_.currentTemperature();
+    const int light = system_.currentLightLevel();
     const QString status = QString::fromStdString(system_.currentStatus());
 
     if (std::isfinite(temp)) {
-        currentTempLabel_->setText(QString("Current Temperature: %1 °C").arg(temp, 0, 'f', 2));
+        currentTempLabel_->setText(
+            QString("Current Temperature: %1 °C | Light: %2")
+                .arg(temp, 0, 'f', 2)
+                .arg(light));
     } else {
-        currentTempLabel_->setText("Current Temperature: --");
+        currentTempLabel_->setText(QString("Current Temperature: -- | Light: %1").arg(light));
     }
 
     currentStatusLabel_->setText(QString("Status: %1").arg(status));

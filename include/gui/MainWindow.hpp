@@ -5,7 +5,6 @@
 #include <QMainWindow>
 #include <QPushButton>
 #include <QSpinBox>
-
 #include "gui/SystemFacade.hpp"
 
 /**

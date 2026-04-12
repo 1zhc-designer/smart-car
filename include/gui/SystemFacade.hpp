@@ -1,5 +1,4 @@
 #pragma once
-
 #include "autonomy/AutoTrackService.hpp"
 #include "dds/LocalDdsBus.hpp"
 #include "dds/VehicleTopics.hpp"
@@ -11,10 +10,8 @@
 #include "motion/MotionController.hpp"
 #include "motor/GpiodMotorDriver.hpp"
 #include "rt/MotionCommandService.hpp"
-
 #include <chrono>
 #include <string>
-
 #include <opencv2/opencv.hpp>
 
 /**
@@ -56,6 +53,7 @@ public:
     void gimbalReset();
 
     double currentTemperature() const;
+    int currentLightLevel() const;
     std::string currentStatus() const;
     int lowLimit() const;
     int highLimit() const;
