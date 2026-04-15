@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <deque>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -71,9 +72,10 @@ public:
     [[nodiscard]] bool previewEnabled() const noexcept;
 
     [[nodiscard]] cv::Mat latestFrame() const;
+    [[nodiscard]] std::optional<CameraDetections> latestDetections() const;
+
     void setDetectionCallback(DetectionCallback callback);
     void setFrameCallback(FrameCallback callback);
-    [[nodiscard]] std::optional<CameraDetections> latestDetections() const;
 
 private:
     struct SaveRequest {
@@ -81,19 +83,32 @@ private:
         std::string imagePath{};
     };
 
+    struct BurstState {
+        bool active{false};
+        int remainingShots{0};
+        int intervalMs{0};
+        std::chrono::steady_clock::time_point nextShotTime{};
+    };
+
 private:
     void captureLoop();
     void processLoop();
     void saveLoop();
+    void previewLoop();
 
     void ensureDirectoryExists(const std::string& path) const;
+
     void updateLatestFrame(const cv::Mat& frame);
+    void updatePreviewFrame(const cv::Mat& frame);
+
     void publishDetections(const CameraDetections& detections);
     void clearLatestDetections();
+
     void notifyFrameReady();
     void enqueueSave(cv::Mat frame, std::string imagePath);
 
     void executeBurst(int count, int intervalMs);
+    void processBurstIfDue(const cv::Mat& frame);
 
 private:
     LocalDdsBus& bus_;
@@ -121,11 +136,20 @@ private:
 
     std::mutex saveMutex_;
     std::condition_variable saveCv_;
-    std::optional<SaveRequest> pendingSave_{};
+    std::deque<SaveRequest> saveQueue_{};
+
+    std::mutex burstMutex_;
+    BurstState burstState_{};
+
+    std::mutex previewMutex_;
+    std::condition_variable previewCv_;
+    cv::Mat previewFrame_{};
+    bool previewFrameReady_{false};
 
     LocalDdsBus::Subscription triggerSub_{};
 
     std::thread captureWorker_{};
     std::thread processWorker_{};
     std::thread saveWorker_{};
+    std::thread previewWorker_{};
 };
