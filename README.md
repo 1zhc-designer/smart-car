@@ -261,7 +261,6 @@ Used for measuring local light intensity in the greenhouse environment and suppo
 
 ## System Functions
 
-The Raspberry Pi smart car platform implements a local inspection and control system for greenhouse-style strawberry monitoring tasks. Based on the current codebase, the system already supports manual control, automatic line-tracking, camera-based visual inspection, onboard temperature monitoring, local warning indication, and a Qt-based user interface.
 
 ### Software Architecture
 
@@ -351,12 +350,14 @@ The software is organized as a layered architecture built around a DDS-style pub
 ### Environmental Monitoring and Warning
 
 - The system currently implements **temperature monitoring** using an NTC sensor through the PCF8591 ADC.
-- The monitoring service reads and filters temperature samples before updating the runtime state.
+- The system also supports **light-intensity sensing** through the PCF8591 ADC for basic ambient-light measurement.
+- The monitoring service reads and filters temperature and light-related samples before updating the runtime state.
 - The operator can set lower and upper temperature thresholds from the GUI.
+- Light-sensor data can be used to support future light-based environmental monitoring and threshold evaluation.
 - The system provides local warning outputs through:
   - LEDs
   - buzzer
-- The GUI shows both the current temperature and the current monitoring status in real time.
+- The GUI shows the current temperature and current monitoring status in real time.
 
 #### Table 2. Temperature monitoring and local alert behavior
 
@@ -432,7 +433,7 @@ This section describes how an operator interacts with the current implemented sy
 
 ## Software Architecture
 
-The current software architecture is centered on a small number of implemented runtime services rather than a full mission-management stack. The design emphasizes modular coordination through typed commands and service boundaries.
+The software is organized as a layered architecture built around a DDS-style publish/subscribe control path. At the top level, the operator interacts with the platform through the Qt GUI and infrared remote control. In the middle layer, motion and gimbal commands flow through the internal DDS-style message bus. At the lower layer, runtime services access the camera, gimbal, motor driver, line sensors, obstacle sensors, and temperature-monitoring hardware.
 
 ### Current Runtime Modules
 
@@ -567,7 +568,7 @@ The codebase also includes module-level test targets for core functions such as 
 | `camera_test` | Test | Validate camera-processing functions |
 | `ir_test` | Test | Validate infrared remote handling |
 | `gui_test` | Test | Validate GUI-related behavior |
-
+| `auto_track_test` | Test | Validate line-tracking-related behavior |
 ---
 
 ## User Case UML / Sequence Diagram
