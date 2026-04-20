@@ -690,10 +690,14 @@ sequenceDiagram
 This section summarizes how sensing, control, actuation, warning modules, and camera interfaces are wired to the Raspberry Pi and motor-control hardware.
 
 <p align="center">
-  <img src="images/gpio_wiring_table.png" width="900" alt="GPIO Wiring Table"><br>
-  <em>Figure 6. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
+  <img src="images/system_wiring_overview.jpg" width="1200" alt="System Wiring Overview"><br>
+  <em>Figure 6. Overall wiring layout of the Raspberry Pi platform, PCF8591 module, light sensor, temperature sensor, buzzer, and RGB LED connections.</em>
 </p>
 
+<p align="center">
+  <img src="images/gpio_wiring_table.png" width="900" alt="GPIO Wiring Table"><br>
+  <em>Figure 7. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
+</p>
 ---
 
 ## Last Updated
