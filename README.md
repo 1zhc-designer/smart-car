@@ -265,11 +265,7 @@ The Raspberry Pi smart car platform implements a local inspection and control sy
 
 ### Software Architecture
 
-<p align="center">
-  <img src="images/system_architecture.png" alt="System Software Architecture" width="1200"/>
-  <br>
-  <em>Figure 5. Layered software architecture of the current implemented system.</em>
-</p>
+
 
 The software is organized as a layered architecture built around a DDS-style publish/subscribe control path. At the top level, the operator interacts with the platform through the Qt GUI and infrared remote control. In the middle layer, motion and gimbal commands flow through the internal DDS-style message bus. At the lower layer, runtime services access the camera, gimbal, motor driver, line sensors, obstacle sensors, and temperature-monitoring hardware.
 
@@ -440,35 +436,15 @@ The current software architecture is centered on a small number of implemented r
 
 ### Current Runtime Modules
 
-- **MainWindow**  
-  Provides the desktop GUI for mode selection, motion control, gimbal control, camera preview, and temperature display.
 
-- **SystemFacade**  
-  Acts as the coordination layer that starts/stops services and switches between Manual and Tracking modes.
+<p align="center">
+  <img src="images/system_architecture.png" alt="System Software Architecture" width="1200"/>
+  <br>
+  <em>Figure 5. Layered software architecture of the current implemented system.</em>
+</p>
 
-- **IrRemote**  
-  Decodes infrared remote-control input and publishes motion/gimbal-related commands.
 
-- **MotionCommandService**  
-  Subscribes to motion commands from the DDS-style bus and applies them with timing control.
 
-- **MotionController**  
-  Maps motion primitives to left/right differential-drive actions.
-
-- **GpiodMotorDriver**  
-  Performs low-level GPIO motor driving and software PWM generation.
-
-- **CameraService**  
-  Captures frames, performs fruit/leaf inspection, annotates frames, and saves relevant images.
-
-- **MonitorService**  
-  Monitors temperature and drives LED/buzzer alerts according to threshold logic.
-
-- **AutoTrackService**  
-  Implements line-following style autonomous movement and obstacle-triggered stop behavior.
-
-- **Gimbal control path**  
-  Handles pan-tilt camera control through a PCA9685-based driver over Linux I2C.
 
 #### Table 3. Implemented runtime modules and responsibilities
 
