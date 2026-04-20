@@ -1,7 +1,7 @@
 # A Non-Contact Intelligent Inspection and Micro-Environment Intervention Platform for Strawberry Greenhouses
 
 <p align="center">
-  <img src="images/logo.jpg" width="600" alt="Project Logo">
+  <img src="images/logo.png" width="600" alt="Project Logo">
 </p>
 
 ---
