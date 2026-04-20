@@ -197,88 +197,6 @@ When the remote control was pressed, the system successfully recognized the comm
 
 ---
 
-## Module-Level Libraries and Dependencies
-
-### Camera / Vision Module
-
-The camera subsystem is implemented as a dedicated C++ service (`CameraService`) for real-time image acquisition, target detection, preview display, and event-based image saving.
-
-**Libraries and interfaces used**
-- **OpenCV**  
-  Used for camera input (`cv::VideoCapture`), frame preprocessing, HSV masking, morphology operations, contour extraction, fruit detection, leaf detection, annotation drawing, preview display, and image saving.
-- **C++ Standard Library**  
-  Used for multithreading, synchronization, callbacks, containers, timing control, sorting, and detection-result publishing.
-- **POSIX / Linux system calls**  
-  Used for checking and creating the local image-save directory.
-
-### Infrared Remote Module
-
-The infrared remote module is implemented as a dedicated C++ service (`IrRemote`) for decoding remote-control input and publishing typed commands to the internal DDS-style message bus.
-
-**Libraries and interfaces used**
-- **LIRC (`lirc_client`)**  
-  Used for infrared receiver initialization, remote configuration loading, code reading, and cleanup.
-- **POSIX / Linux system interfaces**  
-  Used for `epoll`, `eventfd`, `read`, `write`, and `close` to implement blocking, event-driven IR listening and controlled thread shutdown.
-- **C++ Standard Library**  
-  Used for threading, atomic state control, callback handling, and debounce timing.
-- **LocalDdsBus / VehicleTopics**  
-  Used as the project’s internal DDS-style communication layer so that the IR module publishes typed motion and gimbal commands without directly controlling the hardware.
-
-### Motor Control Module
-
-The motor-control subsystem is implemented as a differential-drive driver based on **libgpiod v2**. It controls the left and right motors independently and generates software PWM through a dedicated worker thread.
-
-**Libraries and interfaces used**
-- **libgpiod v2**  
-  Used for Raspberry Pi GPIO line access, output-line configuration, and setting motor direction and PWM pin states.
-- **POSIX / Linux system interfaces**  
-  Used for `epoll`, `eventfd`, `timerfd`, `read`, `write`, and `close` to implement event-driven software PWM without busy waiting.
-- **C++ Standard Library**  
-  Used for threading, atomic state control, mutex protection, speed clamping, fixed-size arrays, and runtime error handling.
-- **IMotorDriver interface**  
-  Used as an internal abstraction layer so that the motor driver implementation can be replaced or extended more easily in the future.
-
-### Qt GUI Module
-
-The desktop control interface is implemented with **Qt5** and provides a user-friendly panel for camera preview, vehicle motion control, gimbal control, and temperature monitoring.
-
-**Libraries and frameworks used**
-- **Qt5 Widgets**  
-  Used to build the main window and interactive controls, including buttons, labels, spin boxes, layouts, and group boxes.
-- **Qt5 Core**  
-  Used for the signal-slot mechanism, timers, and string handling in the GUI event loop.
-- **Qt5 Gui**  
-  Used for image display components such as `QImage` and `QPixmap`.
-- **OpenCV**  
-  Used together with Qt to convert `cv::Mat` camera frames into displayable GUI images.
-- **C++ Standard Library**  
-  Used for time durations, strings, and general application logic inside the façade layer.
-- **LocalDdsBus / VehicleTopics / SystemFacade**  
-  Used as the internal coordination layer so that the GUI publishes typed commands instead of directly controlling low-level hardware.
-
-### Gimbal Module
-
-The pan-tilt gimbal subsystem is implemented as a dedicated servo-control service based on a **PCA9685 PWM driver over Linux I2C**. It receives typed commands through the internal DDS-style bus and converts them into pan/tilt servo movements.
-
-**Libraries and interfaces used**
-- **Linux i2c-dev interface**  
-  Used for low-level communication with the PCA9685 servo controller through `/dev/i2c-1`.
-- **POSIX / Linux system interfaces**  
-  Used for `open`, `read`, `write`, `close`, `ioctl`, and `usleep` during I2C device access and PWM-controller configuration.
-- **C++ Standard Library**  
-  Used for mutex-based synchronization, I2C payload construction, numeric calculations, state management, and runtime error handling.
-- **LocalDdsBus / VehicleTopics**  
-  Used as the internal DDS-style communication layer so that gimbal commands from the GUI and IR remote module can be handled in a unified way.
-
-**Hardware notes**
-- **PWM controller:** PCA9685  
-- **I2C device:** `/dev/i2c-1`  
-- **Default I2C address:** `0x40`  
-- **Servo channels:** tilt = channel 0, pan = channel 1
-
----
-
 ## Bill of Materials (BOM)
 
 This section lists the main hardware modules used to implement the non-contact strawberry greenhouse inspection platform, including mobility, sensing, warning, visual inspection, and operator-control functions.
@@ -334,6 +252,10 @@ Used for temporary wiring, testing, and modular integration during development.
 #### **Voltmeter Module**
 
 Used for battery or power monitoring to support low-voltage warning and safer operation.
+
+#### **Light Sensor Module**
+
+Used for measuring local light intensity in the greenhouse environment and supports future light-based environmental monitoring and threshold evaluation.
 
 ---
 
@@ -465,38 +387,9 @@ The software is organized as a layered architecture built around a DDS-style pub
   - a command-line runtime entry
   - a Qt GUI entry
 
-### Implemented Scope in the Current Version
-
-The current version already implements the following practical system functions:
-
-- manual teleoperation
-- infrared remote control
-- GUI-based operation
-- line-following style automatic tracking
-- obstacle-triggered stop behavior
-- motor actuation through GPIO
-- pan-tilt gimbal control
-- camera-based fruit detection
-- camera-based leaf abnormality screening
-- temperature monitoring
-- local LED and buzzer warning
-- local image capture and storage
-
 ### Functions Not Yet Implemented in the Current Codebase
 
-The following ideas are useful future extensions, but they are not fully implemented in the current code version:
-
-| Planned capability | Current status |
-|---|---|
-| Humidity sensing | Not yet implemented |
-| Light sensing | Not yet implemented |
-| Structured multi-point patrol with checkpoint tagging | Not yet implemented |
-| CSV / SQLite mission logging | Not yet implemented |
-| Automatic mission summary generation | Not yet implemented |
-| Low-battery monitoring | Not yet implemented |
-| Remote web dashboard | Not yet implemented |
-| Closed-loop environmental actuation | Not yet implemented |
-| Reroute logic after obstacle detection | Not yet implemented |
+The following functions have not yet been implemented in the current codebase: humidity sensing, light sensing, structured multi-point patrol with checkpoint tagging, CSV / SQLite mission logging, automatic mission summary generation, low-battery monitoring, remote web dashboard, closed-loop environmental actuation, and reroute logic after obstacle detection.
 
 ---
 
