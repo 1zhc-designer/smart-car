@@ -95,26 +95,105 @@ This section presents visual documentation of the platform, including real proto
 
 This project is implemented in C++ and relies on the following main libraries, frameworks, and system interfaces:
 
-- **libgpiod v2**  
-  Used for GPIO access and hardware control on Raspberry Pi, including motor control, buzzer output, LED indicators, line-tracking sensors, and obstacle-detection sensors.
+- **System Update**  
+  sudo apt update
+sudo apt upgrade -y
 
-- **Qt5 (Widgets / Core / Gui)**  
-  Used to build the desktop GUI for system monitoring, status display, control interaction, camera-frame rendering, and visualization of inspection results.
+- **Install libgpiod v2 and its development environment**  
+  sudo apt install -y libgpiod-dev
 
-- **OpenCV**  
-  Used for camera capture, image preprocessing, HSV color-space conversion, fruit detection, leaf detection, color-based analysis, contour extraction, annotation drawing, preview display, and image conversion for the GUI.
+- **Install OpenCV development library**  
+  sudo apt update
+sudo apt install -y libopencv-dev
 
-- **LIRC (`lirc_client`)**  
-  Used for infrared remote-control input, including IR receiver initialization, remote-code decoding, and command mapping for vehicle motion and pan-tilt control.
+- **Install Qt5 core development package**  
+  sudo apt update
+sudo apt install -y qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools libqt5test5
 
-- **Linux i2c-dev interface**  
-  Used for communication with the PCA9685 PWM controller that drives the pan-tilt gimbal servos over I2C.
+- **Install LIRC development library**  
+  sudo apt update
+sudo apt install -y lirc liblirc-dev
 
-- **C++ Standard Library**  
-  Used throughout the project for multithreading, synchronization, callbacks, timing, containers, sorting, numeric processing, and general application logic.
+- **Conduct infrared configuration**  
+  Step 1: Manually open the source code repository. [The system version is Trixie (Debian 13)]: 
 
-- **POSIX / Linux system calls and interfaces**  
-  Used for low-level system tasks such as directory creation, file-descriptor control, `epoll`, `eventfd`, `timerfd`, `read`, `write`, `close`, `ioctl`, and thread-safe event handling on Linux.
+sudo nano /etc/apt/sources.list.d/debian.sources
+
+#--------------------
+Locate the line "Types: deb". Change it to "Types: deb deb-src". 
+Press Ctrl+O to save, then press Enter to confirm, and finally press Ctrl+X to exit.
+#---------------------
+
+sudo apt update
+mkdir ~/build && cd ~/build
+apt source lirc
+
+Step 2: Complete the compilation dependencies and compile. 
+
+cd..
+sudo apt build-dep lirc
+cd ~/build/lirc-0.10.2
+debuild -uc -us -b
+
+Step 3: Check if the file exists and install the patch
+
+cd ..
+ls
+
+#----------------------
+You should be able to see several files ending with ".deb", such as lirc_0.10.2-0.10_arm64.deb, etc.
+#----------------------
+
+sudo apt install ./liblirc0t64_*.deb ./liblirc-client0t64_*.deb ./lirc_0.10.2-*.deb ./liblirc-dev_*.deb
+
+#----------------------
+If you encounter a message saying "job failed" or some services not starting up after the installation, don't worry at all. This is a normal occurrence.
+#----------------------
+
+Step 4: Configure the pins and restart
+
+sudo nano /boot/firmware/config.txt
+
+#---------------------
+Add at the end of the document: 
+dtoverlay=gpio-ir,gpio_pin=4
+Press Ctrl+O to save, then press Enter to confirm, and finally press Ctrl+X to exit
+#---------------------
+
+sudo reboot
+
+Step 5: Configure lirc_options.conf
+
+sudo cp /etc/lirc/lirc_options.conf.dist /etc/lirc/lirc_options.conf
+sudo nano /etc/lirc/lirc_options.conf
+
+#----------------------
+Modify these two lines of content in the editor as follows: 
+driver = default
+device = /dev/lirc0
+Press Ctrl+O to save, then press Enter to confirm, and finally press Ctrl+X to exit
+#----------------------
+
+#---------------------
+Upload the lircd.conf file to the build folder
+#---------------------
+
+sudo cp ~/build/lircd.conf /etc/lirc/lircd.conf
+sudo systemctl restart lircd.service
+
+Step 6: Final activation and restart
+
+cd ~/build
+sudo apt install ./liblirc0t64_*.deb ./liblirc-client0t64_*.deb ./lirc_0.10.2-*.deb
+sudo reboot
+
+Step 9: After restarting, try running the test command
+
+irw
+
+#------------------
+When the remote control was pressed, the system successfully recognized the commands for keys such as KEY_EQUAL and KEY_CHANNEL.
+#------------------
 
 ---
 
