@@ -4,6 +4,10 @@
   <img src="images/logo.png" width="800" alt="Project Logo">
 </p>
 
+## Video Demo
+
+- **YouTube Channel:** [StrawGuard]
+
 ---
 
 ## Overview
