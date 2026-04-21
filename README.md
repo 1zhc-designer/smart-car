@@ -6,7 +6,8 @@
 
 ## Video Demo
 
-- **YouTube Channel:** [StrawGuard]
+- **Project Demo Video:** [Watch on YouTube](https://youtu.be/noiF_YH_RkE?si=hUN2m9JgqhRS7J64)
+- **YouTube Channel:** [StrawGuard](https://www.youtube.com/@ENG5220)
 
 ---
 
