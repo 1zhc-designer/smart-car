@@ -1,8 +1,13 @@
 # A Non-Contact Intelligent Inspection and Micro-Environment Intervention Platform for Strawberry Greenhouses
 
 <p align="center">
-  <img src="images/logo.jpg" width="600">
+  <img src="images/logo.png" width="800" alt="Project Logo">
 </p>
+
+## Video Demo
+
+- **Project Demo Video:** [Watch on YouTube](https://youtu.be/noiF_YH_RkE?si=hUN2m9JgqhRS7J64)
+- **YouTube Channel:** [StrawGuard](https://www.youtube.com/@ENG5220)
 
 ---
 
@@ -59,17 +64,17 @@ More broadly, the project proposes a new inspection model for strawberry greenho
 This section presents visual documentation of the platform, including real prototype photos. These figures help reviewers understand the mechanical structure, sensor placement, wiring layout, and overall system arrangement.
 
 <p align="center">
-  <img src="images/rover_1.jpg" width="700"><br>
+  <img src="images/rover_1.jpg" width="700" alt="Prototype side view"><br>
   <em>Figure 1. Prototype side view of the greenhouse inspection platform.</em>
 </p>
 
 <p align="center">
-  <img src="images/rover_2.jpg" width="700"><br>
+  <img src="images/rover_2.jpg" width="700" alt="Prototype top view"><br>
   <em>Figure 2. Top view showing the controller board, wiring, and sensor layout.</em>
 </p>
 
 <p align="center">
-  <img src="images/rover_3.jpg" width="700"><br>
+  <img src="images/rover_3.jpg" width="700" alt="Additional prototype view"><br>
   <em>Figure 3. Additional structural view of the prototype platform.</em>
 </p>
 
@@ -80,23 +85,14 @@ This section presents visual documentation of the platform, including real proto
 - [Main Libraries and Dependencies](#main-libraries-and-dependencies)
 - [Module-Level Libraries and Dependencies](#module-level-libraries-and-dependencies)
 - [Bill of Materials (BOM)](#bill-of-materials-bom)
-- [System Functional Requirements](#system-functional-requirements)
-- [Extended Features](#extended-features)
+- [System Functions](#system-functions)
 - [User Workflow and Operating Modes](#user-workflow-and-operating-modes)
 - [Software Architecture](#software-architecture)
 - [Repository Structure and Key Classes / Modules](#repository-structure-and-key-classes--modules)
 - [Build and Run](#build-and-run)
+- [Test Report](#test-report)
 - [User Case UML / Sequence Diagram](#user-case-uml--sequence-diagram)
 - [Circuit / Wiring Diagram](#circuit--wiring-diagram)
-- [Data Logging, Alerts and Reporting](#data-logging-alerts-and-reporting)
-- [Latency and Performance Notes](#latency-and-performance-notes)
-- [Validation and Test Plan](#validation-and-test-plan)
-- [Risk Assessment and Safety Features](#risk-assessment-and-safety-features)
-- [Acknowledgements](#acknowledgements)
-- [Authors and Contributions](#authors-and-contributions)
-- [License (Third-Party Libraries)](#license-third-party-libraries)
-- [Future Work](#future-work)
-- [Contact Us](#contact-us)
 - [Last Updated](#last-updated)
 
 ---
@@ -105,108 +101,105 @@ This section presents visual documentation of the platform, including real proto
 
 This project is implemented in C++ and relies on the following main libraries, frameworks, and system interfaces:
 
-- **libgpiod v2**  
-  Used for GPIO access and hardware control on Raspberry Pi, including motor control, buzzer output, LED indicators, line-tracking sensors, and obstacle-detection sensors.
+- **System Update**  
+  sudo apt update
+sudo apt upgrade -y
 
-- **Qt5 (Widgets / Core / Gui)**  
-  Used to build the desktop GUI for system monitoring, status display, control interaction, camera-frame rendering, and visualization of inspection results.
+- **Install libgpiod v2 and its development environment**  
+  sudo apt install -y libgpiod-dev
 
-- **OpenCV**  
-  Used for camera capture, image preprocessing, HSV color-space conversion, fruit detection, leaf detection, color-based analysis, contour extraction, annotation drawing, preview display, and image conversion for the GUI.
+- **Install OpenCV development library**  
+  sudo apt update
+sudo apt install -y libopencv-dev
 
-- **LIRC (`lirc_client`)**  
-  Used for infrared remote-control input, including IR receiver initialization, remote-code decoding, and command mapping for vehicle motion and pan-tilt control.
+- **Install Qt5 core development package**  
+  sudo apt update
+sudo apt install -y qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools libqt5test5
 
-- **Linux i2c-dev interface**  
-  Used for communication with the PCA9685 PWM controller that drives the pan-tilt gimbal servos over I2C.
+- **Install LIRC development library**  
+  sudo apt update
+sudo apt install -y lirc liblirc-dev
 
-- **C++ Standard Library**  
-  Used throughout the project for multithreading, synchronization, callbacks, timing, containers, sorting, numeric processing, and general application logic.
+- **Conduct infrared configuration**  
+  Step 1: Manually open the source code repository. [The system version is Trixie (Debian 13)]: 
 
-- **POSIX / Linux system calls and interfaces**  
-  Used for low-level system tasks such as directory creation, file-descriptor control, `epoll`, `eventfd`, `timerfd`, `read`, `write`, `close`, `ioctl`, and thread-safe event handling on Linux.
+sudo nano /etc/apt/sources.list.d/debian.sources
 
----
+#--------------------
+Locate the line "Types: deb". Change it to "Types: deb deb-src". 
+Press Ctrl+O to save, then press Enter to confirm, and finally press Ctrl+X to exit.
+#---------------------
 
-## Module-Level Libraries and Dependencies
+sudo apt update
+mkdir ~/build && cd ~/build
+apt source lirc
 
-### Camera / Vision Module
+Step 2: Complete the compilation dependencies and compile. 
 
-The camera subsystem is implemented as a dedicated C++ service (`CameraService`) for real-time image acquisition, target detection, preview display, and event-based image saving.
+cd..
+sudo apt build-dep lirc
+cd ~/build/lirc-0.10.2
+debuild -uc -us -b
 
-**Libraries and interfaces used**
-- **OpenCV**  
-  Used for camera input (`cv::VideoCapture`), frame preprocessing, HSV masking, morphology operations, contour extraction, fruit detection, leaf detection, annotation drawing, preview display, and image saving.
-- **C++ Standard Library**  
-  Used for multithreading, synchronization, callbacks, containers, timing control, sorting, and detection-result publishing.
-- **POSIX / Linux system calls**  
-  Used for checking and creating the local image-save directory.
+Step 3: Check if the file exists and install the patch
 
-### Infrared Remote Module
+cd ..
+ls
 
-The infrared remote module is implemented as a dedicated C++ service (`IrRemote`) for decoding remote-control input and publishing typed commands to the internal DDS-style message bus.
+#----------------------
+You should be able to see several files ending with ".deb", such as lirc_0.10.2-0.10_arm64.deb, etc.
+#----------------------
 
-**Libraries and interfaces used**
-- **LIRC (`lirc_client`)**  
-  Used for infrared receiver initialization, remote configuration loading, code reading, and cleanup.
-- **POSIX / Linux system interfaces**  
-  Used for `epoll`, `eventfd`, `read`, `write`, and `close` to implement blocking, event-driven IR listening and controlled thread shutdown.
-- **C++ Standard Library**  
-  Used for threading, atomic state control, callback handling, and debounce timing.
-- **LocalDdsBus / VehicleTopics**  
-  Used as the project’s internal DDS-style communication layer so that the IR module publishes typed motion and gimbal commands without directly controlling the hardware.
+sudo apt install ./liblirc0t64_*.deb ./liblirc-client0t64_*.deb ./lirc_0.10.2-*.deb ./liblirc-dev_*.deb
 
-### Motor Control Module
+#----------------------
+If you encounter a message saying "job failed" or some services not starting up after the installation, don't worry at all. This is a normal occurrence.
+#----------------------
 
-The motor-control subsystem is implemented as a differential-drive driver based on **libgpiod v2**. It controls the left and right motors independently and generates software PWM through a dedicated worker thread.
+Step 4: Configure the pins and restart
 
-**Libraries and interfaces used**
-- **libgpiod v2**  
-  Used for Raspberry Pi GPIO line access, output-line configuration, and setting motor direction and PWM pin states.
-- **POSIX / Linux system interfaces**  
-  Used for `epoll`, `eventfd`, `timerfd`, `read`, `write`, and `close` to implement event-driven software PWM without busy waiting.
-- **C++ Standard Library**  
-  Used for threading, atomic state control, mutex protection, speed clamping, fixed-size arrays, and runtime error handling.
-- **IMotorDriver interface**  
-  Used as an internal abstraction layer so that the motor driver implementation can be replaced or extended more easily in the future.
+sudo nano /boot/firmware/config.txt
 
-### Qt GUI Module
+#---------------------
+Add at the end of the document: 
+dtoverlay=gpio-ir,gpio_pin=4
+Press Ctrl+O to save, then press Enter to confirm, and finally press Ctrl+X to exit
+#---------------------
 
-The desktop control interface is implemented with **Qt5** and provides a user-friendly panel for camera preview, vehicle motion control, gimbal control, and temperature monitoring.
+sudo reboot
 
-**Libraries and frameworks used**
-- **Qt5 Widgets**  
-  Used to build the main window and interactive controls, including buttons, labels, spin boxes, layouts, and group boxes.
-- **Qt5 Core**  
-  Used for the signal-slot mechanism, timers, and string handling in the GUI event loop.
-- **Qt5 Gui**  
-  Used for image display components such as `QImage` and `QPixmap`.
-- **OpenCV**  
-  Used together with Qt to convert `cv::Mat` camera frames into displayable GUI images.
-- **C++ Standard Library**  
-  Used for time durations, strings, and general application logic inside the façade layer.
-- **LocalDdsBus / VehicleTopics / SystemFacade**  
-  Used as the internal coordination layer so that the GUI publishes typed commands instead of directly controlling low-level hardware.
+Step 5: Configure lirc_options.conf
 
-### Gimbal Module
+sudo cp /etc/lirc/lirc_options.conf.dist /etc/lirc/lirc_options.conf
+sudo nano /etc/lirc/lirc_options.conf
 
-The pan-tilt gimbal subsystem is implemented as a dedicated servo-control service based on a **PCA9685 PWM driver over Linux I2C**. It receives typed commands through the internal DDS-style bus and converts them into pan/tilt servo movements.
+#----------------------
+Modify these two lines of content in the editor as follows: 
+driver = default
+device = /dev/lirc0
+Press Ctrl+O to save, then press Enter to confirm, and finally press Ctrl+X to exit
+#----------------------
 
-**Libraries and interfaces used**
-- **Linux i2c-dev interface**  
-  Used for low-level communication with the PCA9685 servo controller through `/dev/i2c-1`.
-- **POSIX / Linux system interfaces**  
-  Used for `open`, `read`, `write`, `close`, `ioctl`, and `usleep` during I2C device access and PWM-controller configuration.
-- **C++ Standard Library**  
-  Used for mutex-based synchronization, I2C payload construction, numeric calculations, state management, and runtime error handling.
-- **LocalDdsBus / VehicleTopics**  
-  Used as the internal DDS-style communication layer so that gimbal commands from the GUI and IR remote module can be handled in a unified way.
+#---------------------
+Upload the lircd.conf file to the build folder
+#---------------------
 
-**Hardware notes**
-- **PWM controller:** PCA9685  
-- **I2C device:** `/dev/i2c-1`  
-- **Default I2C address:** `0x40`  
-- **Servo channels:** tilt = channel 0, pan = channel 1
+sudo cp ~/build/lircd.conf /etc/lirc/lircd.conf
+sudo systemctl restart lircd.service
+
+Step 6: Final activation and restart
+
+cd ~/build
+sudo apt install ./liblirc0t64_*.deb ./liblirc-client0t64_*.deb ./lirc_0.10.2-*.deb
+sudo reboot
+
+Step 9: After restarting, try running the test command
+
+irw
+
+#------------------
+When the remote control was pressed, the system successfully recognized the commands for keys such as KEY_EQUAL and KEY_CHANNEL.
+#------------------
 
 ---
 
@@ -238,10 +231,6 @@ Provides analog-to-digital conversion for analog sensor input and enables flexib
 
 Used for audible alerts during abnormal conditions or fault events.
 
-#### **Joystick Module**
-
-Supports manual interaction and debugging during teleoperation or bench testing.
-
 #### **RGB LED Module**
 
 Provides simple visual state indication such as normal, warning, or fault status.
@@ -270,218 +259,286 @@ Used for temporary wiring, testing, and modular integration during development.
 
 Used for battery or power monitoring to support low-voltage warning and safer operation.
 
----
+#### **Light Sensor Module**
 
-## System Functional Requirements
-
-The platform shall provide functional capabilities that support non-contact strawberry inspection, local environmental monitoring, abnormal-condition warning, and practical operator review in greenhouse patrol scenarios.
-
-### Environmental Sensing
-- The system shall measure temperature, humidity, and light intensity at configurable intervals (time-based or distance-based).
-- The system shall support sensor calibration offsets and basic filtering (e.g., moving average) to reduce noise.
-- The system shall detect invalid readings (out-of-range or disconnected sensor) and log a fault event.
-
-### Visual Inspection (Camera)
-- The system shall capture still images of plants at configurable intervals and store them with timestamps.
-- The system shall support event-triggered image capture, for example when an environmental parameter exceeds a threshold.
-- The system shall allow the operator to manually trigger image capture during teleoperation.
-- The system shall support basic color-based recognition for fruit maturity and leaf abnormality screening.
-
-### Patrol and Movement
-- The system shall provide a manual control mode (teleoperation) for testing and targeted inspection.
-- The system shall provide a patrol mode that moves along greenhouse aisles and stops at sampling points.
-- The system shall implement basic obstacle handling: stop, wait, and/or reroute depending on available sensors.
-- The system shall support line-following behavior for structured greenhouse patrol paths.
-
-### Data Logging and Reporting
-- The system shall log sensor readings and mission metadata into a local file or database (e.g., CSV or SQLite).
-- The system shall store captured images with consistent naming (timestamp plus optional location tag).
-- The system shall generate a mission summary including min/avg/max values, alert counts, and image references.
-- The system shall support traceable review of inspection records through logged data and visual outputs.
-
-### Alerts and Thresholds
-- The system shall support configurable threshold-based alerts for temperature, humidity, and light.
-- The system shall support trend-based alerts (e.g., temperature rising continuously for N minutes).
-- The system shall record all alerts with timestamps and associated sensor values.
-- The system shall trigger audible and/or visual warning signals when abnormal conditions are detected.
-
-### Safety and Fail-Safe Behavior
-- The system shall include an emergency stop function (hardware button or software command).
-- The platform shall automatically stop the motors when critical faults occur (sensor failure, low battery, or loss of control signal).
-- The system shall monitor battery voltage and provide a low-battery warning and safe stop/return behavior.
-
-### Usability
-- The system shall provide a simple workflow: start mission → monitor status → review logs/images → export report.
-- The system shall provide clear status indication (LED, buzzer, or on-screen messages) for states such as running, alert, and error.
-- The system shall support GUI-based monitoring and operator takeover for suspicious cases.
+Used for measuring local light intensity in the greenhouse environment and supports future light-based environmental monitoring and threshold evaluation.
 
 ---
 
-## Extended Features
+## System Functions
 
-To make the platform more practical and closer to a complete smart-agriculture system, the following extended features are proposed. These features are modular and can be implemented in phases.
 
-### Multi-Point Patrol and Location Tagging
-- Route-based patrol missions: define aisles and checkpoints, and stop automatically for sampling.
-- Distance/time-triggered sampling: record readings every N seconds or every M meters.
-- Location tagging: associate each record with an aisle ID (e.g., A1–A10) and checkpoint ID.
+### Software Architecture
 
-### Smart Alerts and Event Handling
-- Threshold alerts: configurable upper and lower limits for temperature, humidity, and light.
-- Trend alerts: detect continuous rise or fall over a time window to provide earlier warning.
-- Event actions: when an alert occurs, the platform can pause, take close-up photos, and mark an event in the log.
 
-### Plant Growth Tracking with Vision (Optional)
-- Scheduled photo capture at fixed locations for long-term comparison.
-- Simple visual metrics (rule-based):
-  - greenness index / color shift (early yellowing detection)
-  - estimated leaf area change
-  - suspicious spot / high-contrast area detection for disease hints
-- Before-and-after comparison: “today vs. last week” quick review at the same checkpoint.
 
-### Closed-Loop Environmental Actuation (Optional)
-Add relay-controlled devices to form a basic closed-loop system:
-- fan / ventilation
-- humidifier (mist)
-- supplemental lighting
+The software is organized as a layered architecture built around a DDS-style publish/subscribe control path. At the top level, the operator interacts with the platform through the Qt GUI and infrared remote control. In the middle layer, motion and gimbal commands flow through the internal DDS-style message bus. At the lower layer, runtime services access the camera, gimbal, motor driver, line sensors, obstacle sensors, and temperature-monitoring hardware.
 
-Example policy rules:
-- humidity below threshold → mist for 10 s → wait 2 min → re-check
-- light below threshold during daytime → enable LED strip for X minutes
+### Control and Operator Interface
 
-### Remote Dashboard and Operator Interface
-- Local web dashboard hosted on the Pi:
-  - real-time sensor values, alert list, mission status
-  - latest captured images (gallery)
-  - export CSV/report button
-- Mobile-friendly control panel:
-  - start/stop patrol, return home, manual capture, emergency stop
+- The system provides a Qt-based graphical user interface for live operation.
+- The GUI supports:
+  - motion control: forward, backward, left, right, and stop
+  - gimbal control: up, down, left, right, and reset
+  - mode switching between **Manual Mode** and **Tracking Mode**
+  - live camera display
+  - current temperature display
+  - current monitoring status display
+  - editable lower and upper temperature thresholds
+- The system also supports infrared remote control for motion and gimbal commands during manual operation.
 
-### Reliability and Safety Enhancements
-- Battery monitoring with low-battery warning and safe return/stop.
-- Watchdog and fail-safe stop if the control loop hangs or communication is lost.
-- Obstacle avoidance using ultrasonic or ToF sensors, with stop or reroute logic.
+### Motion and Vehicle Control
 
-### Deployment Roadmap
-Because practical agricultural robotic impact is usually phased rather than immediate, the platform’s development path is also designed as a gradual roadmap:
-- **Phase 1:** manual control + sensing + basic logging
-- **Phase 2:** structured patrol + event-triggered capture + threshold alerts
-- **Phase 3:** GUI/dashboard + multi-point patrol + richer reporting
-- **Phase 4:** optional closed-loop environmental response and higher-level vision analysis
+- The system supports the basic motion primitives:
+  - forward
+  - backward
+  - left turn
+  - right turn
+  - stop
+- Motion commands are published through a shared DDS-style command path.
+- A motion command service receives and executes the commands with duration control.
+- The motion controller converts high-level motion commands into left and right motor actions.
+- The GPIO motor driver performs low-level motor actuation using direction control and software PWM.
 
-This phased approach reflects the idea that useful deployment should begin with structured, low-risk, and economically clear inspection tasks before moving toward more complex autonomy.
+### Gimbal Control
+
+- The system supports pan-tilt camera control through a PCA9685-based servo driver.
+- The implemented gimbal functions include:
+  - tilt up
+  - tilt down
+  - pan left
+  - pan right
+  - reset to center
+- Gimbal commands can be issued from both the GUI and the IR remote.
+- The gimbal is also used by the auto-tracking subsystem for centering and sweep behavior.
+
+### Automatic Tracking Function
+
+- The system provides an automatic tracking mode based on line sensors and obstacle sensors.
+- In tracking mode:
+  - the vehicle moves forward when the path is correctly detected
+  - the vehicle steers left or right according to line-sensor states
+  - the vehicle stops when the line is lost
+- If an obstacle is detected:
+  - the vehicle immediately stops
+  - tracking motion is suspended until the obstacle condition is cleared
+  - the gimbal is returned toward the center position
+- The auto-tracking service runs independently from manual teleoperation and is coordinated by the system facade.
+
+#### Table 1. Auto-tracking decision rules
+
+| Condition | System action | Purpose |
+|---|---|---|
+| Left = 0, Right = 0 | Publish **Forward** motion command | Move along the detected path |
+| Left = 1, Right = 0 | Publish **Left Turn** motion command | Correct heading to the left |
+| Left = 0, Right = 1 | Publish **Right Turn** motion command | Correct heading to the right |
+| Left = 1, Right = 1 | Publish **Stop** command | Stop when the track is lost |
+| Obstacle detected | Publish **Stop** command immediately | Prevent collision |
+| Obstacle cleared | Resume line-based decision logic | Continue auto-tracking |
+| Obstacle active during tracking | Return gimbal toward center position | Keep the camera in a safe neutral orientation |
+| Tracking mode enabled | Run sensor, obstacle, and gimbal worker loops | Support continuous autonomous behavior |
+
+### Camera and Visual Inspection
+
+- The system captures live frames from the onboard camera.
+- The camera service performs rule-based image processing using OpenCV.
+- The implemented visual functions include:
+  - fruit detection using HSV color segmentation and contour filtering
+  - leaf detection using contour extraction
+  - leaf-condition screening based on color-ratio analysis
+- Leaves are classified into:
+  - **Normal**
+  - **Suspicious**
+  - **Abnormal**
+- The processed frame is annotated and displayed in the GUI for operator review.
+- The system saves captured inspection images locally when significant detection results are present, such as fruit targets or abnormal leaves.
+
+### Environmental Monitoring and Warning
+
+- The system currently implements **temperature monitoring** using an NTC sensor through the PCF8591 ADC.
+- The system also supports **light-intensity sensing** through the PCF8591 ADC for basic ambient-light measurement.
+- The monitoring service reads and filters temperature and light-related samples before updating the runtime state.
+- The operator can set lower and upper temperature thresholds from the GUI.
+- Light-sensor data can be used to support future light-based environmental monitoring and threshold evaluation.
+- The system provides local warning outputs through:
+  - LEDs
+  - buzzer
+- The GUI shows the current temperature and current monitoring status in real time.
+
+#### Table 2. Temperature monitoring and local alert behavior
+
+| Runtime condition | Temperature status | LED behavior | Buzzer behavior | GUI update |
+|---|---|---|---|---|
+| Reading valid and below lower threshold | **Too Cold** | Alert indication enabled | Alert indication enabled | Show low-temperature warning status |
+| Reading valid and within threshold range | **Normal** | Normal-state indication | No warning tone | Show normal status |
+| Reading valid and above upper threshold | **Too Hot** | Alert indication enabled | Alert indication enabled | Show high-temperature warning status |
+| Reading invalid but previous valid state exists | Retry / keep last valid interpretation | Preserve safe runtime behavior | No new abnormal trigger unless condition confirmed | Show retry or temporary invalid state |
+| Reading invalid and no valid reference available | Sensor invalid / unavailable | Conservative state | Conservative state | Show invalid-sensor status |
+| User changes low / high limits in GUI | Thresholds updated | Future evaluations use new limits | Future evaluations use new limits | GUI reflects new thresholds immediately |
+
+### System Coordination
+
+- The main runtime is coordinated through `SystemFacade`.
+- This layer is responsible for starting, stopping, and switching between the major subsystems:
+  - motion service
+  - gimbal service
+  - monitor service
+  - camera service
+  - IR service
+  - auto-tracking service
+- The project provides both:
+  - a command-line runtime entry
+  - a Qt GUI entry
+
+### Functions Not Yet Implemented in the Current Codebase
+
+The following functions have not yet been implemented in the current codebase: humidity sensing, light sensing, structured multi-point patrol with checkpoint tagging, CSV / SQLite mission logging, automatic mission summary generation, low-battery monitoring, remote web dashboard, closed-loop environmental actuation, and reroute logic after obstacle detection.
 
 ---
 
 ## User Workflow and Operating Modes
 
-This section describes how an operator interacts with the platform and how the system behaves under different operating modes. The design focuses on a simple workflow with clear state transitions and safe stopping behavior.
+This section describes how an operator interacts with the current implemented system. Based on the present codebase, the platform supports two practical operating modes: **Manual Mode** and **Tracking Mode**.
 
 ### Typical User Workflow
-1. **Power On and Setup:** The operator powers on the platform, confirms battery level, and checks that the sensors and camera are detected.
-2. **Select Mode:** Choose one of the operating modes: Manual Inspection, Patrol Mission, or Data Review.
-3. **Start Mission:** The platform begins moving (or waits for teleoperation commands). Sensor sampling and logging start automatically.
-4. **Monitoring During Operation:** The operator observes live sensor values, GUI status, and camera preview (optional). Alerts are displayed if thresholds or trends are exceeded.
-5. **Event Handling:** If any alert occurs, the platform pauses (optional), captures extra close-up images, and records an event marker in the log.
-6. **Manual Review / Takeover:** If needed, the operator takes over via infrared remote control and adjusts the pan-tilt camera for closer inspection.
-7. **Mission End:** The platform stops at the end of the route or returns to the start point (optional).
-8. **Review and Export:** The operator reviews the mission summary, images, and exports CSV/report files for greenhouse management records.
+
+1. **Power On**  
+   Start the command-line runtime or launch the Qt GUI application.
+
+2. **System Initialization**  
+   The platform initializes the gimbal, motion service, monitor service, camera service, and control interface.
+
+3. **Select Mode**  
+   The operator selects either **Manual Mode** or **Tracking Mode** from the GUI.
+
+4. **Operate the Platform**
+   - In **Manual Mode**, the operator uses GUI buttons or the IR remote to control motion and gimbal movement.
+   - In **Tracking Mode**, the platform uses line sensors and obstacle sensors to perform automatic line-following style movement.
+
+5. **Monitor Status**  
+   The operator observes the live camera view, current temperature, and current system status from the GUI.
+
+6. **Stop or Switch Mode**  
+   The operator can stop the vehicle at any time or switch between Manual and Tracking modes.
 
 ### Operating Modes
-- **Mode A — Manual Inspection (Teleoperation)**  
-  Purpose: debugging, targeted inspection, and close-up image capture.  
-  Features enabled: manual drive, manual photo capture, pan-tilt review, live sensor readout.
 
-- **Mode B — Patrol Mission (Semi-Auto)**  
-  Purpose: routine scheduled patrol along greenhouse aisles.  
-  Features enabled: autonomous sampling, event-triggered capture, alert generation, summary report.
+- **Manual Mode**
+  - GUI motion buttons enabled
+  - GUI gimbal buttons enabled
+  - IR remote enabled
+  - Intended for direct teleoperation, debugging, and close-up inspection
 
-- **Mode C — Stationary Monitoring (Optional)**  
-  Purpose: use the platform as a temporary monitoring station.  
-  Features enabled: high-frequency sensing, trend alerts, periodic photo capture.
-
-- **Mode D — Data Review / Maintenance**  
-  Purpose: maintenance and dataset management.  
-  Functions: view logs/images, clean storage, calibration offsets, sensor diagnostics.
-
-**Recommended State Machine**  
-Idle → Self-check → Manual / Patrol / Stationary → Alert Handling → Manual Review / Return / Stop → Report
-
-Safety rule: any critical fault triggers Safe Stop and requires operator confirmation before resuming.
+- **Tracking Mode**
+  - AutoTrackService enabled
+  - IR remote disabled
+  - Manual motion buttons disabled
+  - Intended for line-following style autonomous movement with obstacle stop behavior
 
 ---
 
 ## Software Architecture
 
-The platform software is designed as a modular system so that sensing, movement, vision, logging, alert handling, and GUI visualization can evolve together without becoming tightly coupled. This reflects the central engineering idea behind the project: practical capability depends not only on the existence of modules, but on whether they can coordinate reliably in real inspection tasks.
+The software is organized as a layered architecture built around a DDS-style publish/subscribe control path. At the top level, the operator interacts with the platform through the Qt GUI and infrared remote control. In the middle layer, motion and gimbal commands flow through the internal DDS-style message bus. At the lower layer, runtime services access the camera, gimbal, motor driver, line sensors, obstacle sensors, and temperature-monitoring hardware.
 
-### High-Level Architecture
+### Current Runtime Modules
 
-Core modules:
-- **Mission Manager (State Machine / FSM):** Controls overall system states and mission flow (Idle → Self-check → Patrol → Alert Handling → Review → Return → Report).
-- **Sensor Manager:** Reads temperature, humidity, light, and optional sensors at a fixed rate, applies filtering, and publishes data.
-- **Vision Module:** Handles camera capture, file naming, storage, and OpenCV-based color recognition for fruit/leaf inspection.
-- **Motion Control Module:** Provides low-level motor control and high-level motion primitives (forward, stop, turn).
-- **Navigation Module:** Implements patrol behavior (checkpoints, line-following, obstacle stop/avoid, return-to-home).
-- **Alert Manager:** Evaluates thresholds/trends and triggers alerts and event actions (pause + extra photos + local warning).
-- **Data Logger:** Writes sensor data, events, and mission metadata into CSV/SQLite and manages image indexing.
-- **UI / GUI Dashboard:** Desktop interface for monitoring system status, reviewing results, and supporting operator takeover.
-- **Infrared Remote Module:** Receives and decodes IR remote-control input through LIRC, applies debounce logic, and publishes motion/gimbal commands to the internal DDS-style bus.
-- **Gimbal Module:** Controls the pan-tilt servos through PCA9685 over Linux I2C and executes typed gimbal commands from the internal bus.
 
-### Data Flow
-- Sensors produce periodic readings → Sensor Manager
-- Readings are filtered and timestamped → sent to Logger + Alert Manager
-- Alert Manager may trigger event actions (pause + warning + photo) via Mission Manager
-- Vision Module stores images and returns file references → stored by Logger
-- GUI reads current status and logged outputs for visualization and operator review
-- At mission end, the Report Generator summarizes statistics and exports outputs
+<p align="center">
+  <img src="images/system_architecture.png" alt="System Software Architecture" width="1200"/>
+  <br>
+  <em>Figure 5. Layered software architecture of the current implemented system.</em>
+</p>
 
-### Recommended Concurrency Model
-- Thread/Task 1: Sensor sampling (typically 1–5 Hz)
-- Thread/Task 2: Motion and navigation loop (50–100 Hz control loop; obstacle checks 5–20 Hz)
-- Thread/Task 3: Camera capture and OpenCV processing (periodic or event-driven)
-- Thread/Task 4: GUI / communication (remote control, status updates, result visualization)
 
-This separation prevents camera or disk I/O from blocking motor safety control.
 
-### Key Design Principles
-- **Loose coupling:** Modules communicate through well-defined interfaces or message queues.
-- **Fail-safe first:** Any critical fault triggers Safe Stop in the Mission Manager.
-- **Configuration-driven:** Thresholds, sampling rates, and route checkpoints are stored in config files (YAML/JSON).
-- **Testability:** Sensor stubs and simulated inputs enable unit testing without hardware.
-- **Practical inspectability:** The system should support real operator review, not only automatic execution.
-- **Phased deployability:** Structured, low-risk functions are prioritized before more complex autonomous behaviors.
+
+#### Table 3. Implemented runtime modules and responsibilities
+
+| Module / Class | Main responsibility | Input | Output / Effect |
+|---|---|---|---|
+| `MainWindow` | Provide the Qt GUI for live operation | User button clicks, mode selection | GUI commands, camera preview, temperature/status display |
+| `SystemFacade` | Coordinate runtime services and mode switching | GUI mode/control requests | Starts/stops services and publishes typed commands |
+| `IrRemote` | Decode IR remote input | Remote-control key events | Motion or gimbal command topics |
+| `MotionCommandService` | Execute motion commands from the DDS-style bus | `MotionCommandTopic` | Timed motion application |
+| `MotionController` | Map motion primitives to differential-drive behavior | Forward / backward / left / right / stop | Left/right motor actions |
+| `GpiodMotorDriver` | Drive motors through GPIO and software PWM | Motor direction and speed requests | Physical wheel actuation |
+| `GimbalService` | Control pan-tilt servos through PCA9685 | Gimbal commands | Pan / tilt / reset movement |
+| `CameraService` | Capture frames and run fruit/leaf inspection | Live camera frames | Annotated frame, detections, saved images |
+| `MonitorService` | Monitor temperature and generate local alerts | NTC temperature readings | GUI status update, LED control, buzzer control |
+| `AutoTrackService` | Perform line-following style autonomous control | Line-sensor and obstacle-sensor states | Published motion commands for tracking mode |
+
+### Current Data / Command Flow
+
+- GUI buttons and IR remote input generate typed control commands.
+- Commands are published through the internal DDS-style message bus.
+- Motion-related commands are consumed by the motion command service.
+- The motion controller and GPIO driver convert high-level commands into motor actions.
+- Camera frames are processed independently and displayed in the GUI.
+- Temperature-monitoring results are sent to the GUI and also drive local buzzer/LED warning behavior.
+- In Tracking Mode, auto-tracking logic publishes motion commands according to line-sensor and obstacle-sensor states.
+
+### Current Concurrency Characteristics
+
+The current implementation uses multiple worker threads in the runtime services so that motor control, infrared listening, temperature monitoring, camera processing, and auto-tracking logic can run without blocking one another. This design helps prevent image processing or device I/O from interfering with movement safety and control responsiveness.
+
+### Design Principles Reflected in the Current Codebase
+
+- **Loose coupling:** command producers and command consumers are separated through an internal DDS-style bus.
+- **Service-oriented runtime:** camera, monitoring, auto-tracking, and control paths are organized as distinct services.
+- **Fail-safe movement behavior:** stop commands are explicitly supported in both manual and tracking paths.
+- **Operator-in-the-loop design:** the GUI and IR remote remain central to practical inspection and manual takeover.
+- **Incremental extensibility:** the current structure can be extended toward richer logging, additional sensing, and more complex autonomy in later versions.
 
 ---
 
 ## Repository Structure and Key Classes / Modules
 
-The repository is organized to separate documentation assets, hardware references, and implementation code.
+The repository is organized around the current implemented runtime modules.
 
-- `images/` — project images, logo, platform photos, and visual illustrations used in the README
-- `include/` — header files and interface definitions for C/C++ modules
-- `schematics/` — wiring diagrams, module schematics, and hardware reference files
-- `src/` — main source code for sensing, motion, patrol logic, logging, GUI control, and inspection functions
-- `tests/` — test programs or validation scripts for individual modules
+- `images/` — project images, logo, platform photos, wiring references, and architecture illustrations used in the README
+- `include/` — header files and interface definitions for the main C++ modules
+- `src/` — main source code for runtime services and hardware-control logic
+- `tests/` — test programs for core modules
 - `CMakeLists.txt` — project build configuration
 - `README.md` — project overview, documentation, and system description
 
-Recommended logical module grouping inside `src/` / `include/`:
-- sensing module
-- motion control module
-- patrol/navigation module
-- alert and event module
-- camera / image capture module
-- OpenCV inspection module
-- infrared remote module
-- gimbal control module
-- data logging module
-- GUI / remote-control module
+### Main Implemented Runtime Modules
 
-This structure supports modular development and makes it easier to extend the platform from a prototype into a more complete greenhouse inspection system.
+- `src/gui/MainWindow.cpp`  
+  Qt desktop interface for mode selection, motion control, gimbal control, camera preview, and temperature display
+
+- `src/gui/SystemFacade.cpp`  
+  High-level coordination layer that starts/stops services and switches between Manual and Tracking modes
+
+- `src/ir/IrRemote.cpp`  
+  Infrared remote decoding and command publishing
+
+- `src/monitor/CameraService.cpp`  
+  Camera capture, fruit detection, leaf abnormality screening, frame annotation, and image saving
+
+- `src/monitor/MonitorService.cpp`  
+  Temperature monitoring through PCF8591 + NTC, threshold evaluation, and LED/buzzer warning output
+
+- `src/autonomy/AutoTrackService.cpp`  
+  Line-following style auto-tracking and obstacle-triggered stop logic
+
+- `src/rt/MotionCommandService.cpp`  
+  DDS-style motion-command subscriber and timed motion execution
+
+- `src/motion/MotionController.cpp`  
+  Mapping from motion primitives to left/right motor actions
+
+- `src/motor/GpiodMotorDriver.cpp`  
+  Low-level GPIO motor driving and software PWM generation
+
+- `src/gimbal/GimbalService.cpp`  
+  PCA9685-based pan-tilt servo control over I2C
+
+This structure supports modular development while remaining closely aligned with the current implemented codebase.
 
 ---
+
 ## Build and Run
 
 This project uses **CMake** as the build system.
@@ -494,52 +551,98 @@ mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
 ```
----
 
+### Build Targets
+
+The current project builds two runtime executables:
+
+- `smartcar` — command-line runtime entry
+- `smartcar_gui` — Qt desktop GUI entry
+
+The codebase also includes module-level test targets for core functions such as bus communication, motion control, monitoring, gimbal control, camera processing, infrared remote handling, and GUI behavior.
+
+#### Table 4. Build outputs and validation targets
+
+| Target | Type | Purpose |
+|---|---|---|
+| `smartcar` | Executable | Command-line runtime entry |
+| `smartcar_gui` | Executable | Qt desktop GUI application |
+| `bus_test` | Test | Validate internal bus communication |
+| `motion_test` | Test | Validate motion-control logic |
+| `monitor_test` | Test | Validate monitoring behavior |
+| `gimbal_test` | Test | Validate gimbal control behavior |
+| `camera_test` | Test | Validate camera-processing functions |
+| `ir_test` | Test | Validate infrared remote handling |
+| `gui_test` | Test | Validate GUI-related behavior |
+| `auto_track_test` | Test | Validate line-tracking-related behavior |
+---
+## Test Report
+
+A separate project test report is included in this repository:
+
+- [Download the test report](images/test%20_report.pdf)
+
+---
 ## User Case UML / Sequence Diagram
 
-This section describes the main user cases and the corresponding sequence of interactions between the operator and the platform subsystems. The diagrams clarify responsibilities across sensing, motion, vision, logging, alerts, and manual review.
+This section describes the implemented command paths in the current prototype rather than a future mission-management architecture.
 
-### Main User Cases
+### Sequence Diagram — Manual GUI Control
 
-- **Start Patrol Mission**  
-  Actor: Operator  
-  Goal: Start an inspection mission and collect environmental data and images automatically.
+```mermaid
+sequenceDiagram
+    participant Operator
+    participant GUI as MainWindow
+    participant Facade as SystemFacade
+    participant Bus as LocalDdsBus
+    participant MotionSvc as MotionCommandService
+    participant Ctrl as MotionController
+    participant Driver as GpiodMotorDriver
 
-- **Manual Inspection and Close-Up Review**  
-  Actor: Operator  
-  Goal: Teleoperate the platform to a target plant and inspect fruit or leaves without direct contact.
+    Operator->>GUI: Click Forward
+    GUI->>Facade: moveForward()
+    Facade->>Bus: publish(MotionCommandTopic)
+    Bus->>MotionSvc: onCommand(topic)
+    MotionSvc->>Ctrl: apply(Up, speed)
+    Ctrl->>Driver: setLeft(speed, true)
+    Ctrl->>Driver: setRight(speed, true)
 
-- **Alert Event Handling**  
-  Actor: Platform (system) + Operator  
-  Goal: Detect abnormal environmental or visual conditions, capture evidence, and notify the operator.
+    Operator->>GUI: Click Stop
+    GUI->>Facade: stopMotion()
+    Facade->>Bus: publish(Stop)
+    Bus->>MotionSvc: onCommand(topic)
+    MotionSvc->>Ctrl: apply(Stop, 0)
+```
 
-- **End Mission and Export Report**  
-  Actor: Operator  
-  Goal: Stop the mission, review results, and export logs and images for record keeping.
+### Sequence Diagram — Tracking-Mode Command Path
 
-### Sequence Diagram — Patrol Mission (UC-1)
+```mermaid
+sequenceDiagram
+    participant Operator
+    participant GUI as MainWindow
+    participant Facade as SystemFacade
+    participant AutoTrack as AutoTrackService
+    participant Bus as LocalDdsBus
+    participant MotionSvc as MotionCommandService
+    participant Ctrl as MotionController
+    participant Driver as GpiodMotorDriver
 
-Participants: Operator, GUI, MissionManager, SensorManager, AlertManager, VisionModule, DataLogger, MotorControl, ObstacleSensor (optional)
+    Operator->>GUI: Select Tracking Mode
+    GUI->>Facade: setMode(Tracking)
+    Facade->>AutoTrack: start()
 
-Sequence:
-- Operator → GUI: Select Patrol Mode and press Start.
-- GUI → MissionManager: `startMission(patrol)`
-- MissionManager → SelfCheck: battery / sensor / camera status verification
-- MissionManager → MotorControl: `beginPatrol()`
-- Loop (while patrol is running):
-  - SensorManager → DataLogger: `log(sensor_readings, timestamp, location)`
-  - SensorManager → AlertManager: `evaluate(readings)`
-  - VisionModule → DataLogger: `log(image_path, timestamp, location)`
-  - AlertManager → MissionManager: if abnormal → `triggerEvent(alertType)`
-  - MissionManager → VisionModule: `captureImage(eventTag)`
-  - ObstacleSensor → Navigation / MotorControl: if obstacle → `stop()` / `wait()` / `reroute()`
-- Operator → GUI: Review alert / take over manually if necessary
-- Operator → GUI: Press Stop (or route ends)
-- GUI → MissionManager: `stopMission()`
-- MissionManager → DataLogger: `finalizeMission()`
-- DataLogger → ReportGenerator: `generateSummary()`
-- GUI → Operator: Display summary and provide export
+    loop while tracking is active
+        AutoTrack->>AutoTrack: Read line / obstacle state
+        AutoTrack->>Bus: publish(MotionCommandTopic)
+        Bus->>MotionSvc: onCommand(topic)
+        MotionSvc->>Ctrl: apply(...)
+        Ctrl->>Driver: drive motors
+    end
+
+    alt obstacle detected
+        AutoTrack->>Bus: publish(Stop)
+    end
+```
 
 ---
 
@@ -548,9 +651,16 @@ Sequence:
 This section summarizes how sensing, control, actuation, warning modules, and camera interfaces are wired to the Raspberry Pi and motor-control hardware.
 
 <p align="center">
-  <img src="images/gpio_wiring_table.png" width="900"><br>
-  <em>Figure 4. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
+  <img src="images/system_wiring_overview.jpg" width="1200" alt="System Wiring Overview"><br>
+  <em>Figure 6. Overall wiring layout of the Raspberry Pi platform, PCF8591 module, light sensor, temperature sensor, buzzer, and RGB LED connections.</em>
 </p>
 
+<p align="center">
+  <img src="images/gpio_wiring_table.png" width="900" alt="GPIO Wiring Table"><br>
+  <em>Figure 7. GPIO wiring table: hardware-to-Raspberry Pi GPIO mapping used in the current prototype.</em>
+</p>
+---
+
 ## Last Updated
+
 2026-03-31
