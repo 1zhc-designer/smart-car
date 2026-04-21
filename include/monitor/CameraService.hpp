@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <functional>
 #include <mutex>
 #include <optional>
@@ -9,6 +11,9 @@
 #include <vector>
 
 #include <opencv2/opencv.hpp>
+
+#include "dds/LocalDdsBus.hpp"
+#include "dds/VehicleTopics.hpp"
 
 struct FruitTarget {
     cv::Rect bounds{};
@@ -47,7 +52,8 @@ public:
     using DetectionCallback = std::function<void(const CameraDetections&)>;
     using FrameCallback = std::function<void()>;
 
-    explicit CameraService(int cameraIndex = 0,
+    explicit CameraService(LocalDdsBus& bus,
+                           int cameraIndex = 0,
                            const std::string& savePath = "./captures",
                            bool showPreviewWindow = true);
     ~CameraService();
@@ -66,20 +72,46 @@ public:
     [[nodiscard]] bool previewEnabled() const noexcept;
 
     [[nodiscard]] cv::Mat latestFrame() const;
-    void setDetectionCallback(DetectionCallback callback);
-    void setFrameCallback(FrameCallback callback);
     [[nodiscard]] std::optional<CameraDetections> latestDetections() const;
 
+    void setDetectionCallback(DetectionCallback callback);
+    void setFrameCallback(FrameCallback callback);
+
 private:
-    void runLoop();
+    struct SaveRequest {
+        cv::Mat frame{};
+        std::string imagePath{};
+    };
+
+    struct BurstState {
+        bool active{false};
+        int remainingShots{0};
+        int intervalMs{0};
+        std::chrono::steady_clock::time_point nextShotTime{};
+    };
+
+private:
+    void captureLoop();
+    void processLoop();
+    void saveLoop();
+    void previewLoop();
 
     void ensureDirectoryExists(const std::string& path) const;
+
     void updateLatestFrame(const cv::Mat& frame);
+    void updatePreviewFrame(const cv::Mat& frame);
+
     void publishDetections(const CameraDetections& detections);
     void clearLatestDetections();
+
     void notifyFrameReady();
+    void enqueueSave(cv::Mat frame, std::string imagePath);
+
+    void executeBurst(int count, int intervalMs);
+    void processBurstIfDue(const cv::Mat& frame);
 
 private:
+    LocalDdsBus& bus_;
     int cameraIndex_{0};
     std::string savePath_{"./captures"};
 
@@ -97,5 +129,27 @@ private:
     DetectionCallback detectionCallback_{};
     FrameCallback frameCallback_{};
 
-    std::thread worker_{};
+    std::mutex rawFrameMutex_;
+    std::condition_variable rawFrameCv_;
+    cv::Mat rawFrame_{};
+    bool rawFrameReady_{false};
+
+    std::mutex saveMutex_;
+    std::condition_variable saveCv_;
+    std::deque<SaveRequest> saveQueue_{};
+
+    std::mutex burstMutex_;
+    BurstState burstState_{};
+
+    std::mutex previewMutex_;
+    std::condition_variable previewCv_;
+    cv::Mat previewFrame_{};
+    bool previewFrameReady_{false};
+
+    LocalDdsBus::Subscription triggerSub_{};
+
+    std::thread captureWorker_{};
+    std::thread processWorker_{};
+    std::thread saveWorker_{};
+    std::thread previewWorker_{};
 };

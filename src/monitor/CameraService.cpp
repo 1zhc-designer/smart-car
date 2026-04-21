@@ -25,6 +25,8 @@ constexpr int kMinLeafWidth = 20;
 constexpr int kMinLeafHeight = 20;
 
 constexpr int kSaveIntervalSeconds = 2;
+constexpr int kLeafDetectEveryNFrames = 3;
+constexpr std::size_t kMaxSaveQueueDepth = 8;
 
 const char* kWindowName = "Improved Monitor";
 
@@ -45,27 +47,19 @@ struct LeafColorStats {
 
 const char* toStatusText(const LeafHealthStatus status) {
     switch (status) {
-        case LeafHealthStatus::Normal:
-            return "Normal";
-        case LeafHealthStatus::Suspicious:
-            return "Suspicious";
-        case LeafHealthStatus::Abnormal:
-            return "Abnormal";
-        default:
-            return "Unknown";
+        case LeafHealthStatus::Normal: return "Normal";
+        case LeafHealthStatus::Suspicious: return "Suspicious";
+        case LeafHealthStatus::Abnormal: return "Abnormal";
+        default: return "Unknown";
     }
 }
 
 cv::Scalar statusColor(const LeafHealthStatus status) {
     switch (status) {
-        case LeafHealthStatus::Normal:
-            return cv::Scalar(0, 255, 0);
-        case LeafHealthStatus::Suspicious:
-            return cv::Scalar(0, 255, 255);
-        case LeafHealthStatus::Abnormal:
-            return cv::Scalar(0, 0, 255);
-        default:
-            return cv::Scalar(255, 255, 255);
+        case LeafHealthStatus::Normal: return cv::Scalar(0, 255, 0);
+        case LeafHealthStatus::Suspicious: return cv::Scalar(0, 255, 255);
+        case LeafHealthStatus::Abnormal: return cv::Scalar(0, 0, 255);
+        default: return cv::Scalar(255, 255, 255);
     }
 }
 
@@ -73,6 +67,7 @@ void configureCamera(cv::VideoCapture& capture) {
     capture.set(cv::CAP_PROP_FRAME_WIDTH, kFrameWidth);
     capture.set(cv::CAP_PROP_FRAME_HEIGHT, kFrameHeight);
     capture.set(cv::CAP_PROP_FPS, kFrameFps);
+    capture.set(cv::CAP_PROP_BUFFERSIZE, 1);
 }
 
 void preprocessFrame(const cv::Mat& frame, cv::Mat& hsv) {
@@ -93,7 +88,6 @@ cv::Mat buildFruitMask(const cv::Mat& hsv) {
 
     const cv::Mat kernel =
         cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(7, 7));
-
     cv::morphologyEx(fruitMask, fruitMask, cv::MORPH_OPEN, kernel);
     cv::morphologyEx(fruitMask, fruitMask, cv::MORPH_CLOSE, kernel);
 
@@ -102,12 +96,10 @@ cv::Mat buildFruitMask(const cv::Mat& hsv) {
 
 cv::Mat buildLeafMask(const cv::Mat& hsv) {
     cv::Mat leafMask;
-
     cv::inRange(hsv, cv::Scalar(25, 35, 35), cv::Scalar(95, 255, 255), leafMask);
 
     const cv::Mat kernel =
         cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(5, 5));
-
     cv::morphologyEx(leafMask, leafMask, cv::MORPH_OPEN, kernel);
     cv::morphologyEx(leafMask, leafMask, cv::MORPH_CLOSE, kernel);
 
@@ -143,7 +135,8 @@ bool isValidLeafContour(const std::vector<cv::Point>& contour) {
 
 std::vector<FrameDetection> detectFruits(const cv::Mat& fruitMask) {
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(fruitMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(
+        fruitMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     std::vector<FrameDetection> detections;
     detections.reserve(contours.size());
@@ -154,93 +147,64 @@ std::vector<FrameDetection> detectFruits(const cv::Mat& fruitMask) {
         }
 
         const cv::Rect rect = cv::boundingRect(contour);
-
-        detections.push_back(FrameDetection{
-            rect,
-            rect.x + rect.width / 2,
-            rect.y + rect.height / 2
-        });
+        detections.push_back(
+            {rect, rect.x + rect.width / 2, rect.y + rect.height / 2});
     }
-
-    std::sort(detections.begin(),
-              detections.end(),
-              [](const FrameDetection& left, const FrameDetection& right) {
-                  if (left.rect.y != right.rect.y) {
-                      return left.rect.y < right.rect.y;
-                  }
-                  return left.rect.x < right.rect.x;
-              });
 
     return detections;
 }
 
-LeafColorStats analyzeLeafColors(const cv::Mat& hsv,
-                                 const cv::Mat& singleLeafMask,
-                                 const cv::Rect& bounds) {
+LeafColorStats analyzeLeafColors(const cv::Mat& hsvRoi, const cv::Mat& maskRoi) {
     LeafColorStats stats{};
 
-    const cv::Mat hsvRegion = hsv(bounds);
-    const cv::Mat maskRegion = singleLeafMask(bounds);
+    int total = 0;
+    int yellow = 0;
+    int white = 0;
+    int black = 0;
+    int brown = 0;
 
-    int totalLeafPixels = 0;
-    int yellowPixels = 0;
-    int whitePixels = 0;
-    int blackPixels = 0;
-    int brownPixels = 0;
+    for (int y = 0; y < hsvRoi.rows; ++y) {
+        const auto* hsvRow = hsvRoi.ptr<cv::Vec3b>(y);
+        const auto* maskRow = maskRoi.ptr<uchar>(y);
 
-    for (int y = 0; y < hsvRegion.rows; ++y) {
-        for (int x = 0; x < hsvRegion.cols; ++x) {
-            if (maskRegion.at<uchar>(y, x) == 0) {
+        for (int x = 0; x < hsvRoi.cols; ++x) {
+            if (maskRow[x] == 0) {
                 continue;
             }
 
-            ++totalLeafPixels;
+            ++total;
+            const cv::Vec3b& hsv = hsvRow[x];
 
-            const cv::Vec3b hsvPixel = hsvRegion.at<cv::Vec3b>(y, x);
-            const int hue = hsvPixel[0];
-            const int saturation = hsvPixel[1];
-            const int value = hsvPixel[2];
-
-            if (value < 55) {
-                ++blackPixels;
-                continue;
-            }
-
-            if (saturation < 35 && value > 160) {
-                ++whitePixels;
-                continue;
-            }
-
-            if (hue >= 15 && hue <= 40 && saturation >= 45 && value >= 80) {
-                ++yellowPixels;
-                continue;
-            }
-
-            if (hue >= 5 && hue <= 22 && saturation >= 50 && value >= 40 && value <= 180) {
-                ++brownPixels;
+            if (hsv[2] < 55) {
+                ++black;
+            } else if (hsv[1] < 35 && hsv[2] > 160) {
+                ++white;
+            } else if (hsv[0] >= 15 && hsv[0] <= 40 && hsv[1] >= 45 && hsv[2] >= 80) {
+                ++yellow;
+            } else if (hsv[0] >= 5 && hsv[0] <= 22 &&
+                       hsv[1] >= 50 && hsv[2] >= 40 && hsv[2] <= 180) {
+                ++brown;
             }
         }
     }
 
-    if (totalLeafPixels == 0) {
-        return stats;
-    }
+    if (total > 0) {
+        stats.yellowRatio = static_cast<double>(yellow) / static_cast<double>(total);
+        stats.whiteRatio = static_cast<double>(white) / static_cast<double>(total);
+        stats.blackRatio = static_cast<double>(black) / static_cast<double>(total);
+        stats.brownRatio = static_cast<double>(brown) / static_cast<double>(total);
+        stats.abnormalRatio =
+            stats.yellowRatio + stats.whiteRatio + stats.blackRatio + stats.brownRatio;
 
-    stats.yellowRatio = static_cast<double>(yellowPixels) / totalLeafPixels;
-    stats.whiteRatio = static_cast<double>(whitePixels) / totalLeafPixels;
-    stats.blackRatio = static_cast<double>(blackPixels) / totalLeafPixels;
-    stats.brownRatio = static_cast<double>(brownPixels) / totalLeafPixels;
-    stats.abnormalRatio = stats.yellowRatio + stats.whiteRatio +
-                          stats.blackRatio + stats.brownRatio;
-
-    if (stats.abnormalRatio >= 0.20 || stats.blackRatio >= 0.08 || stats.brownRatio >= 0.10) {
-        stats.status = LeafHealthStatus::Abnormal;
-    } else if (stats.abnormalRatio >= 0.08 ||
-               stats.yellowRatio >= 0.05 ||
-               stats.whiteRatio >= 0.05) {
-        stats.status = LeafHealthStatus::Suspicious;
-    } else {
-        stats.status = LeafHealthStatus::Normal;
+        if (stats.abnormalRatio >= 0.20 ||
+            stats.blackRatio >= 0.08 ||
+            stats.brownRatio >= 0.10) {
+            stats.status = LeafHealthStatus::Abnormal;
+        } else if (stats.abnormalRatio >= 0.08 ||
+                   stats.yellowRatio >= 0.05 ||
+                   stats.whiteRatio >= 0.05) {
+            stats.status = LeafHealthStatus::Suspicious;
+        }
     }
 
     return stats;
@@ -248,7 +212,8 @@ LeafColorStats analyzeLeafColors(const cv::Mat& hsv,
 
 std::vector<LeafTarget> detectLeaves(const cv::Mat& hsv, const cv::Mat& leafMask) {
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(leafMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(
+        leafMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
     std::vector<LeafTarget> leaves;
     leaves.reserve(contours.size());
@@ -260,13 +225,20 @@ std::vector<LeafTarget> detectLeaves(const cv::Mat& hsv, const cv::Mat& leafMask
 
         const cv::Rect bounds = cv::boundingRect(contour);
 
-        cv::Mat singleLeafMask = cv::Mat::zeros(leafMask.size(), CV_8UC1);
-        std::vector<std::vector<cv::Point>> singleContour{contour};
-        cv::drawContours(singleLeafMask, singleContour, 0, cv::Scalar(255), cv::FILLED);
+        cv::Mat roiMask = cv::Mat::zeros(bounds.size(), CV_8UC1);
+        std::vector<cv::Point> shifted;
+        shifted.reserve(contour.size());
 
-        const LeafColorStats stats = analyzeLeafColors(hsv, singleLeafMask, bounds);
+        for (const auto& p : contour) {
+            shifted.push_back({p.x - bounds.x, p.y - bounds.y});
+        }
 
-        leaves.push_back(LeafTarget{
+        cv::fillPoly(
+            roiMask, std::vector<std::vector<cv::Point>>{shifted}, cv::Scalar(255));
+
+        const auto stats = analyzeLeafColors(hsv(bounds), roiMask);
+
+        leaves.push_back({
             bounds,
             bounds.x + bounds.width / 2,
             bounds.y + bounds.height / 2,
@@ -279,32 +251,15 @@ std::vector<LeafTarget> detectLeaves(const cv::Mat& hsv, const cv::Mat& leafMask
         });
     }
 
-    std::sort(leaves.begin(),
-              leaves.end(),
-              [](const LeafTarget& left, const LeafTarget& right) {
-                  if (left.bounds.y != right.bounds.y) {
-                      return left.bounds.y < right.bounds.y;
-                  }
-                  return left.bounds.x < right.bounds.x;
-              });
-
     return leaves;
 }
 
-void drawFruitDetections(cv::Mat& frame, const std::vector<FrameDetection>& fruits) {
-    for (std::size_t index = 0; index < fruits.size(); ++index) {
-        const auto& fruit = fruits[index];
-
-        cv::rectangle(frame, fruit.rect, cv::Scalar(0, 255, 0), 2);
-
-        const std::string label =
-            "Fruit " + std::to_string(index + 1) +
-            " (" + std::to_string(fruit.targetX) +
-            "," + std::to_string(fruit.targetY) + ")";
-
+void drawFruitDetections(cv::Mat& frame, const std::vector<FruitTarget>& fruits) {
+    for (std::size_t i = 0; i < fruits.size(); ++i) {
+        cv::rectangle(frame, fruits[i].bounds, cv::Scalar(0, 255, 0), 2);
         cv::putText(frame,
-                    label,
-                    cv::Point(fruit.rect.x, std::max(20, fruit.rect.y - 10)),
+                    "Fruit " + std::to_string(i + 1),
+                    {fruits[i].bounds.x, std::max(20, fruits[i].bounds.y - 10)},
                     cv::FONT_HERSHEY_SIMPLEX,
                     0.5,
                     cv::Scalar(0, 255, 0),
@@ -313,20 +268,12 @@ void drawFruitDetections(cv::Mat& frame, const std::vector<FrameDetection>& frui
 }
 
 void drawLeafDetections(cv::Mat& frame, const std::vector<LeafTarget>& leaves) {
-    for (std::size_t index = 0; index < leaves.size(); ++index) {
-        const auto& leaf = leaves[index];
-        const cv::Scalar color = statusColor(leaf.status);
-
-        cv::rectangle(frame, leaf.bounds, color, 2);
-
-        const std::string label =
-            "Leaf " + std::to_string(index + 1) + " " +
-            toStatusText(leaf.status) + " A=" +
-            std::to_string(static_cast<int>(leaf.abnormalRatio * 100.0)) + "%";
-
+    for (std::size_t i = 0; i < leaves.size(); ++i) {
+        const cv::Scalar color = statusColor(leaves[i].status);
+        cv::rectangle(frame, leaves[i].bounds, color, 2);
         cv::putText(frame,
-                    label,
-                    cv::Point(leaf.bounds.x, std::max(20, leaf.bounds.y - 10)),
+                    "Leaf " + std::to_string(i + 1) + " " + toStatusText(leaves[i].status),
+                    {leaves[i].bounds.x, std::max(20, leaves[i].bounds.y - 10)},
                     cv::FONT_HERSHEY_SIMPLEX,
                     0.5,
                     color,
@@ -334,93 +281,107 @@ void drawLeafDetections(cv::Mat& frame, const std::vector<LeafTarget>& leaves) {
     }
 }
 
-bool hasAbnormalLeaf(const std::vector<LeafTarget>& leaves) {
-    return std::any_of(leaves.begin(),
-                       leaves.end(),
-                       [](const LeafTarget& leaf) {
-                           return leaf.status != LeafHealthStatus::Normal;
-                       });
-}
+std::vector<FruitTarget> convertFruitTargets(
+    const std::vector<FrameDetection>& detections) {
+    std::vector<FruitTarget> fruits;
+    fruits.reserve(detections.size());
 
-bool shouldSaveNow(const std::chrono::steady_clock::time_point now,
-                   const std::chrono::steady_clock::time_point lastSaveTime) {
-    const auto elapsedSeconds =
-        std::chrono::duration_cast<std::chrono::seconds>(now - lastSaveTime).count();
-    return elapsedSeconds >= kSaveIntervalSeconds;
-}
-
-std::string buildFileName(const std::string& savePath,
-                          const std::vector<FrameDetection>& fruits,
-                          const std::vector<LeafTarget>& leaves) {
-    std::size_t abnormalLeafCount = 0;
-    for (const auto& leaf : leaves) {
-        if (leaf.status != LeafHealthStatus::Normal) {
-            ++abnormalLeafCount;
-        }
+    for (const auto& d : detections) {
+        fruits.push_back({d.rect, d.targetX, d.targetY});
     }
 
-    if (abnormalLeafCount > 0U) {
-        return savePath + "/LeafAlert_" + std::to_string(abnormalLeafCount) + ".jpg";
-    }
-
-    if (fruits.size() > 1U) {
-        return savePath + "/Fruits_" + std::to_string(fruits.size()) + ".jpg";
-    }
-
-    if (fruits.size() == 1U) {
-        return savePath + "/Fruit_X" + std::to_string(fruits.front().targetX) +
-               "_Y" + std::to_string(fruits.front().targetY) + ".jpg";
-    }
-
-    return savePath + "/Capture.jpg";
-}
-
-CameraDetections buildPublishedDetections(const std::vector<FrameDetection>& fruits,
-                                          const std::vector<LeafTarget>& leaves) {
-    CameraDetections detections{};
-    detections.leaves = leaves;
-    detections.fruits.reserve(fruits.size());
-
-    for (const auto& fruit : fruits) {
-        detections.fruits.push_back(FruitTarget{
-            fruit.rect,
-            fruit.targetX,
-            fruit.targetY
-        });
-    }
-
-    return detections;
+    return fruits;
 }
 
 }  // namespace
 
-CameraService::CameraService(const int cameraIndex,
+CameraService::CameraService(LocalDdsBus& bus,
+                             int cameraIndex,
                              const std::string& savePath,
-                             const bool showPreviewWindow)
-    : cameraIndex_(cameraIndex),
+                             bool showPreviewWindow)
+    : bus_(bus),
+      cameraIndex_(cameraIndex),
       savePath_(savePath),
-      showPreviewWindow_(showPreviewWindow) {
-}
+      showPreviewWindow_(showPreviewWindow) {}
 
 CameraService::~CameraService() {
     stop();
 }
 
-bool CameraService::isRunning() const noexcept {
-    return running_.load(std::memory_order_acquire);
+void CameraService::start() {
+    bool expected = false;
+    if (!running_.compare_exchange_strong(expected, true)) {
+        return;
+    }
+
+    stopRequested_.store(false);
+
+    triggerSub_ = bus_.subscribe<CameraTriggerTopic>(
+        [this](const CameraTriggerTopic& topic) {
+            executeBurst(topic.count, topic.intervalMs);
+        });
+
+    saveWorker_ = std::thread(&CameraService::saveLoop, this);
+    processWorker_ = std::thread(&CameraService::processLoop, this);
+    captureWorker_ = std::thread(&CameraService::captureLoop, this);
+
+    if (previewEnabled()) {
+        previewWorker_ = std::thread(&CameraService::previewLoop, this);
+    }
 }
 
-void CameraService::setPreviewEnabled(const bool enabled) {
-    showPreviewWindow_.store(enabled, std::memory_order_release);
+void CameraService::stop() {
+    stopRequested_.store(true);
+    triggerSub_.reset();
+
+    rawFrameCv_.notify_all();
+    saveCv_.notify_all();
+    previewCv_.notify_all();
+
+    if (captureWorker_.joinable()) {
+        captureWorker_.join();
+    }
+    if (processWorker_.joinable()) {
+        processWorker_.join();
+    }
+    if (saveWorker_.joinable()) {
+        saveWorker_.join();
+    }
+    if (previewWorker_.joinable()) {
+        previewWorker_.join();
+    }
+
+    running_.store(false);
+}
+
+bool CameraService::isRunning() const noexcept {
+    return running_.load();
+}
+
+void CameraService::setPreviewEnabled(bool enabled) {
+    const bool old = showPreviewWindow_.exchange(enabled);
+
+    if (!old && enabled && running_.load() && !previewWorker_.joinable()) {
+        previewWorker_ = std::thread(&CameraService::previewLoop, this);
+    }
+
+    if (!enabled) {
+        previewCv_.notify_all();
+    }
 }
 
 bool CameraService::previewEnabled() const noexcept {
-    return showPreviewWindow_.load(std::memory_order_acquire);
+    return showPreviewWindow_.load();
 }
 
 cv::Mat CameraService::latestFrame() const {
     std::lock_guard<std::mutex> lock(frameMutex_);
     return latestFrame_.clone();
+}
+
+std::optional<CameraDetections> CameraService::latestDetections() const {
+    std::lock_guard<std::mutex> lock(detectionMutex_);
+    return latestDetections_;
 }
 
 void CameraService::setDetectionCallback(DetectionCallback callback) {
@@ -433,16 +394,220 @@ void CameraService::setFrameCallback(FrameCallback callback) {
     frameCallback_ = std::move(callback);
 }
 
-std::optional<CameraDetections> CameraService::latestDetections() const {
-    std::lock_guard<std::mutex> lock(detectionMutex_);
-    return latestDetections_;
+void CameraService::captureLoop() {
+    cv::VideoCapture capture(cameraIndex_);
+    if (!capture.isOpened()) {
+        return;
+    }
+
+    configureCamera(capture);
+
+    cv::Mat frame;
+    while (!stopRequested_.load()) {
+        if (!capture.read(frame) || frame.empty()) {
+            break;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(rawFrameMutex_);
+            rawFrame_ = frame.clone();
+            rawFrameReady_ = true;
+        }
+        rawFrameCv_.notify_one();
+    }
 }
 
-void CameraService::ensureDirectoryExists(const std::string& path) const {
-    struct stat info {};
-    if (::stat(path.c_str(), &info) != 0) {
-        ::mkdir(path.c_str(), 0777);
+void CameraService::processLoop() {
+    ensureDirectoryExists(savePath_);
+
+    cv::Mat frame;
+    cv::Mat hsv;
+
+    auto lastSaveTime = std::chrono::steady_clock::now();
+    std::vector<LeafTarget> cachedLeaves;
+    std::uint64_t frameCounter = 0;
+
+    while (!stopRequested_.load()) {
+        {
+            std::unique_lock<std::mutex> lock(rawFrameMutex_);
+            rawFrameCv_.wait(lock, [this] {
+                return stopRequested_.load() || rawFrameReady_;
+            });
+
+            if (stopRequested_.load() && !rawFrameReady_) {
+                break;
+            }
+
+            frame = rawFrame_.clone();
+            rawFrameReady_ = false;
+        }
+
+        ++frameCounter;
+
+        preprocessFrame(frame, hsv);
+
+        const auto fruitDetections = detectFruits(buildFruitMask(hsv));
+        const auto fruits = convertFruitTargets(fruitDetections);
+
+        if ((frameCounter % kLeafDetectEveryNFrames) == 0U) {
+            cachedLeaves = detectLeaves(hsv, buildLeafMask(hsv));
+        }
+
+        CameraDetections detections;
+        detections.fruits = fruits;
+        detections.leaves = cachedLeaves;
+
+        drawFruitDetections(frame, detections.fruits);
+        drawLeafDetections(frame, detections.leaves);
+
+        const bool hasFruitTarget = !detections.fruits.empty();
+        if (hasFruitTarget) {
+            ObjectDetectedTopic det;
+            det.detected = true;
+            det.objectType = "fruit";
+            bus_.publish(det);
+        }
+
+        if (hasFruitTarget &&
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::steady_clock::now() - lastSaveTime).count() >=
+                kSaveIntervalSeconds) {
+            detections.savedImagePath =
+                savePath_ + "/AutoCapture_" +
+                std::to_string(
+                    std::chrono::system_clock::now().time_since_epoch().count()) +
+                ".jpg";
+            enqueueSave(frame.clone(), detections.savedImagePath);
+            lastSaveTime = std::chrono::steady_clock::now();
+        }
+
+        processBurstIfDue(frame);
+
+        publishDetections(detections);
+        updateLatestFrame(frame);
+        updatePreviewFrame(frame);
+        notifyFrameReady();
     }
+
+    clearLatestDetections();
+}
+
+void CameraService::saveLoop() {
+    while (true) {
+        SaveRequest req;
+
+        {
+            std::unique_lock<std::mutex> lock(saveMutex_);
+            saveCv_.wait(lock, [this] {
+                return stopRequested_.load() || !saveQueue_.empty();
+            });
+
+            if (saveQueue_.empty() && stopRequested_.load()) {
+                break;
+            }
+
+            if (saveQueue_.empty()) {
+                continue;
+            }
+
+            req = std::move(saveQueue_.front());
+            saveQueue_.pop_front();
+        }
+
+        if (!req.frame.empty()) {
+            cv::imwrite(req.imagePath, req.frame);
+        }
+    }
+}
+
+void CameraService::previewLoop() {
+    while (!stopRequested_.load()) {
+        cv::Mat frameToShow;
+
+        {
+            std::unique_lock<std::mutex> lock(previewMutex_);
+            previewCv_.wait(lock, [this] {
+                return stopRequested_.load() ||
+                       (!showPreviewWindow_.load() ? false : previewFrameReady_);
+            });
+
+            if (stopRequested_.load()) {
+                break;
+            }
+
+            if (!showPreviewWindow_.load()) {
+                continue;
+            }
+
+            frameToShow = previewFrame_.clone();
+            previewFrameReady_ = false;
+        }
+
+        if (!frameToShow.empty()) {
+            cv::imshow(kWindowName, frameToShow);
+            if (cv::waitKey(1) == 27) {
+                stopRequested_.store(true);
+                rawFrameCv_.notify_all();
+                saveCv_.notify_all();
+                previewCv_.notify_all();
+                break;
+            }
+        }
+    }
+
+    cv::destroyWindow(kWindowName);
+}
+
+void CameraService::enqueueSave(cv::Mat frame, std::string imagePath) {
+    std::lock_guard<std::mutex> lock(saveMutex_);
+
+    if (saveQueue_.size() >= kMaxSaveQueueDepth) {
+        saveQueue_.pop_front();
+    }
+
+    saveQueue_.push_back({std::move(frame), std::move(imagePath)});
+    saveCv_.notify_one();
+}
+
+void CameraService::executeBurst(int count, int intervalMs) {
+    if (count <= 0 || intervalMs < 0) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(burstMutex_);
+    burstState_.active = true;
+    burstState_.remainingShots = count;
+    burstState_.intervalMs = intervalMs;
+    burstState_.nextShotTime = std::chrono::steady_clock::now();
+}
+
+void CameraService::processBurstIfDue(const cv::Mat& frame) {
+    std::lock_guard<std::mutex> lock(burstMutex_);
+
+    if (!burstState_.active || burstState_.remainingShots <= 0) {
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (now < burstState_.nextShotTime) {
+        return;
+    }
+
+    const std::string path =
+        savePath_ + "/Burst_" +
+        std::to_string(std::chrono::system_clock::now().time_since_epoch().count()) +
+        "_" + std::to_string(burstState_.remainingShots) + ".jpg";
+
+    enqueueSave(frame.clone(), path);
+
+    --burstState_.remainingShots;
+    if (burstState_.remainingShots <= 0) {
+        burstState_.active = false;
+        return;
+    }
+
+    burstState_.nextShotTime =
+        now + std::chrono::milliseconds(burstState_.intervalMs);
 }
 
 void CameraService::updateLatestFrame(const cv::Mat& frame) {
@@ -450,21 +615,31 @@ void CameraService::updateLatestFrame(const cv::Mat& frame) {
     latestFrame_ = frame.clone();
 }
 
-void CameraService::publishDetections(const CameraDetections& detections) {
-    DetectionCallback callbackCopy;
+void CameraService::updatePreviewFrame(const cv::Mat& frame) {
+    if (!showPreviewWindow_.load()) {
+        return;
+    }
 
+    {
+        std::lock_guard<std::mutex> lock(previewMutex_);
+        previewFrame_ = frame.clone();
+        previewFrameReady_ = true;
+    }
+    previewCv_.notify_one();
+}
+
+void CameraService::publishDetections(const CameraDetections& detections) {
+    DetectionCallback cb;
     {
         std::lock_guard<std::mutex> lock(detectionMutex_);
         latestDetections_ = detections;
     }
-
     {
         std::lock_guard<std::mutex> lock(callbackMutex_);
-        callbackCopy = detectionCallback_;
+        cb = detectionCallback_;
     }
-
-    if (callbackCopy) {
-        callbackCopy(detections);
+    if (cb) {
+        cb(detections);
     }
 }
 
@@ -474,123 +649,19 @@ void CameraService::clearLatestDetections() {
 }
 
 void CameraService::notifyFrameReady() {
-    FrameCallback callbackCopy;
-
+    FrameCallback cb;
     {
         std::lock_guard<std::mutex> lock(callbackMutex_);
-        callbackCopy = frameCallback_;
+        cb = frameCallback_;
     }
-
-    if (callbackCopy) {
-        callbackCopy();
-    }
-}
-
-void CameraService::start() {
-    bool expected = false;
-    if (!running_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
-        return;
-    }
-
-    stopRequested_.store(false, std::memory_order_release);
-
-    try {
-        worker_ = std::thread([this]() {
-            try {
-                runLoop();
-            } catch (...) {
-            }
-            running_.store(false, std::memory_order_release);
-        });
-    } catch (...) {
-        running_.store(false, std::memory_order_release);
-        throw;
+    if (cb) {
+        cb();
     }
 }
 
-void CameraService::stop() {
-    stopRequested_.store(true, std::memory_order_release);
-
-    if (worker_.joinable()) {
-        worker_.join();
+void CameraService::ensureDirectoryExists(const std::string& path) const {
+    struct stat s {};
+    if (stat(path.c_str(), &s) != 0) {
+        mkdir(path.c_str(), 0777);
     }
-}
-
-void CameraService::runLoop() {
-    cv::VideoCapture capture(cameraIndex_);
-    if (!capture.isOpened()) {
-        throw std::runtime_error("Cannot open camera");
-    }
-
-    configureCamera(capture);
-    ensureDirectoryExists(savePath_);
-
-    cv::Mat frame;
-    cv::Mat hsv;
-
-    auto lastSaveTime = std::chrono::steady_clock::now();
-
-    if (previewEnabled()) {
-        cv::namedWindow(kWindowName, cv::WINDOW_AUTOSIZE);
-    }
-
-    while (!stopRequested_.load(std::memory_order_acquire)) {
-        if (!capture.read(frame) || frame.empty()) {
-            break;
-        }
-
-        preprocessFrame(frame, hsv);
-
-        const cv::Mat fruitMask = buildFruitMask(hsv);
-        const cv::Mat leafMask = buildLeafMask(hsv);
-
-        const std::vector<FrameDetection> fruitDetections = detectFruits(fruitMask);
-        const std::vector<LeafTarget> leafDetections = detectLeaves(hsv, leafMask);
-
-        drawFruitDetections(frame, fruitDetections);
-        drawLeafDetections(frame, leafDetections);
-
-        CameraDetections detections = buildPublishedDetections(fruitDetections, leafDetections);
-
-        const bool abnormalLeafDetected = hasAbnormalLeaf(leafDetections);
-        const bool shouldSaveImage = !fruitDetections.empty() || abnormalLeafDetected;
-        const bool hasAnyDetection = !detections.fruits.empty() || !detections.leaves.empty();
-
-        const auto now = std::chrono::steady_clock::now();
-        if (shouldSaveImage && shouldSaveNow(now, lastSaveTime)) {
-            const std::string imagePath =
-                buildFileName(savePath_, fruitDetections, leafDetections);
-
-            if (cv::imwrite(imagePath, frame)) {
-                detections.savedImagePath = imagePath;
-                lastSaveTime = now;
-            }
-        }
-
-        if (hasAnyDetection) {
-            publishDetections(detections);
-        } else {
-            clearLatestDetections();
-        }
-
-        updateLatestFrame(frame);
-        notifyFrameReady();
-
-        if (previewEnabled()) {
-            cv::imshow(kWindowName, frame);
-            if (cv::waitKey(1) == 27) {
-                break;
-            }
-        } else {
-            cv::waitKey(1);
-        }
-    }
-
-    capture.release();
-
-    if (previewEnabled()) {
-        cv::destroyWindow(kWindowName);
-    }
-
-    clearLatestDetections();
 }

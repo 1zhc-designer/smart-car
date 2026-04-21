@@ -1,5 +1,4 @@
 #pragma once
-
 #include "autonomy/AutoTrackService.hpp"
 #include "dds/LocalDdsBus.hpp"
 #include "dds/VehicleTopics.hpp"
@@ -56,6 +55,7 @@ public:
     void gimbalReset();
 
     double currentTemperature() const;
+    int currentLightLevel() const;
     std::string currentStatus() const;
     int lowLimit() const;
     int highLimit() const;

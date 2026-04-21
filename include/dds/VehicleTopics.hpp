@@ -40,3 +40,21 @@ struct GimbalCommandTopic {
 struct SystemStatusTopic {
     std::string message;
 };
+
+/**
+ * @brief Topic carrying object detection results from CameraService.
+ * * Used to notify other services when a specific target (fruit/leaf) is found.
+ */
+struct ObjectDetectedTopic {
+    bool detected{false};
+    std::string objectType{"none"};
+};
+
+/**
+ * @brief Topic used to trigger specific camera actions like burst photos.
+ */
+struct CameraTriggerTopic {
+    int count{1};
+    int intervalMs{500};
+    std::string source{"logic"};
+};
