@@ -89,6 +89,7 @@ This section presents visual documentation of the platform, including real proto
 - [Software Architecture](#software-architecture)
 - [Repository Structure and Key Classes / Modules](#repository-structure-and-key-classes--modules)
 - [Build and Run](#build-and-run)
+- [Test Report](#test-report)
 - [User Case UML / Sequence Diagram](#user-case-uml--sequence-diagram)
 - [Circuit / Wiring Diagram](#circuit--wiring-diagram)
 - [Last Updated](#last-updated)
@@ -574,7 +575,13 @@ The codebase also includes module-level test targets for core functions such as 
 | `gui_test` | Test | Validate GUI-related behavior |
 | `auto_track_test` | Test | Validate line-tracking-related behavior |
 ---
+## Test Report
 
+A separate project test report is included in this repository:
+
+- [Download the test report](images/test_report.doc)
+
+---
 ## User Case UML / Sequence Diagram
 
 This section describes the implemented command paths in the current prototype rather than a future mission-management architecture.
