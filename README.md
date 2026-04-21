@@ -579,7 +579,7 @@ The codebase also includes module-level test targets for core functions such as 
 
 A separate project test report is included in this repository:
 
-- [Download the test report](images/test_report.doc)
+- [Download the test report](images/test%20_report.pdf)
 
 ---
 ## User Case UML / Sequence Diagram
